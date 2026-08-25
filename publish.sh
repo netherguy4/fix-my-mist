@@ -22,7 +22,7 @@ git push
 
 # Коммит со старой версией в шапке Tampermonkey за обновление не считает,
 # поэтому дожидаемся, пока адрес из @updateURL отдаст новую.
-raw=https://codeberg.org/netherguy/fix-my-mist-script/raw/branch/main/fix-my-mist.user.js
+raw=https://codeberg.org/netherguy/fix-my-mist/raw/branch/main/fix-my-mist.user.js
 for i in $(seq 24); do
   [[ $(curl -sS "$raw") == *"$ver"* ]] && {
     echo "опубликовано $ver, Codeberg отдаёт её через $((i * 5)) с"

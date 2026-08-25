@@ -11,8 +11,8 @@
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @grant        GM_unregisterMenuCommand
-// @updateURL    https://codeberg.org/netherguy/fix-my-mist-script/raw/branch/main/fix-my-mist.user.js
-// @downloadURL  https://codeberg.org/netherguy/fix-my-mist-script/raw/branch/main/fix-my-mist.user.js
+// @updateURL    https://codeberg.org/netherguy/fix-my-mist/raw/branch/main/fix-my-mist.user.js
+// @downloadURL  https://codeberg.org/netherguy/fix-my-mist/raw/branch/main/fix-my-mist.user.js
 // ==/UserScript==
 
 // Набор живёт одним файлом: каждая правка — функция, которой отдают окно
