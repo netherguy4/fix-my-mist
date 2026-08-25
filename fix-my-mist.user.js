@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.0.2
-// @description  Несколько исправлений для Mist: бой не зависает, длинные списки показываются целиком.
+// @version      1.1.0
+// @description  Несколько исправлений для Mist: бой не зависает, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -77,6 +77,27 @@
       if (patch()) clearInterval(waiting);
     }, 500);
     setTimeout(() => clearInterval(waiting), 60000);
+  }
+
+  // Лог боя не съезжает.
+  //
+  // Поле боя и лог — два соседних float-блока внутри #battle_f, и ширины им
+  // считает сама игра (обработчик resize у .battleFieldContainer):
+  //   G = $("#battle_f").width(); поле = Math.round(G * доля); лог = G - поле.
+  // При зуме страницы, отличном от 100%, реальная ширина #battle_f дробная —
+  // при 150% это 1224.67 px, — а G целое, 1225. Сумма выставленных ширин
+  // (674 + 551) выходит шире родителя на треть пикселя, второму float не
+  // хватает места в строке, и лог переносится вниз: оказывается под полем боя,
+  // за пределами видимой области, и выглядит как пропавший.
+  // Правка отдаёт логу пару пикселей запаса в margin-box. Сам блок остаётся
+  // прежней ширины и рисуется как раньше — за край родителя уходит меньше
+  // пикселя, и тот всё равно обрезан #cutter. Ширины игра пересчитывает при
+  // каждом ресайзе, поэтому запас держится стилем, а не разовой правкой.
+  function battleLogRow(window) {
+    const style = window.document.createElement("style");
+    style.textContent = "#battle_f > #info_block { margin-right: -3px }";
+    // На document-start head ещё нет, а documentElement уже есть.
+    (window.document.head || window.document.documentElement).appendChild(style);
   }
 
   // Длинные списки.
@@ -389,9 +410,15 @@
     }
   }
 
+  // Правка на обкатке помечается `experimental`: в меню менеджера скриптов к ней
+  // дописывается «эксперимент», а витрина на mist-clan вычитывает этот же флаг
+  // прямо из текста скрипта и рисует метку у карточки. Так пометка живёт в
+  // одном месте — снимаем её здесь, и на сайте она пропадает сама. Строку с
+  // правкой держим однострочной: витрина разбирает её регулярным выражением.
   const FIXES = [
-    { id: "battle-unfreeze", title: "Бой не зависает", run: battleUnfreeze },
-    { id: "pages", title: "Длинные списки", run: pagesMultiplier }
+    { id: "battle-unfreeze", title: "Бой не зависает", experimental: true, run: battleUnfreeze },
+    { id: "battle-log-row", title: "Лог боя не съезжает", experimental: true, run: battleLogRow },
+    { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier }
   ];
 
   for (const fix of FIXES) {
@@ -416,7 +443,8 @@
       }
       for (const fix of FIXES) {
         const on = enabled(fix.id);
-        commands.push(GM_registerMenuCommand(`${on ? "✔" : "✘"} ${fix.title}`, () => {
+        const mark = fix.experimental ? " · эксперимент" : "";
+        commands.push(GM_registerMenuCommand(`${on ? "✔" : "✘"} ${fix.title}${mark}`, () => {
           localStorage.setItem(SETTING + fix.id, on ? "off" : "on");
           renderMenu();
           location.reload();
