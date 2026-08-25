@@ -6,8 +6,8 @@ cd "$(dirname "$0")"
 node test.js
 ver=$(grep -m1 '^// @version' fix-my-mist.user.js | awk '{print $3}')
 git add -A
-git diff --cached --quiet && { echo "нечего публиковать"; exit 0; }
-git commit -q -m "${1:-обновление правок}"
+# Коммит мог быть сделан и руками — тогда публикуем то, что уже лежит в ветке.
+git diff --cached --quiet || git commit -q -m "${1:-обновление правок}"
 
 # Обновление раздаёт Codeberg: raw.githubusercontent открывается не у всех в
 # РФ. .mirror — отдельный репозиторий на один файл, заводится вручную один раз.
