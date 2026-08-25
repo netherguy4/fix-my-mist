@@ -135,7 +135,7 @@ vm.runInNewContext(`
 `, off);
 assert.deepEqual(off.result.posted, [], "выключенная правка не ходит за страницами");
 assert.equal(off.MOD.pages, nativePages, "выключенная правка не подменяет MOD.pages");
-assert.deepEqual(off.menu, ["✔ Разморозка боя", "✘ Кратность пагинации"],
+assert.deepEqual(off.menu, ["✔ Бой не зависает", "✘ Длинные списки"],
   "меню показывает состояние каждой правки");
 
 // Разморозка боя: анимация, чей AnimationStart потерялся, всё равно

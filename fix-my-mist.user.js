@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://templars-clan.online/
-// @version      1.0.0
-// @description  Набор правок к Mist: разморозка боевой доски и кратность пагинации списков.
+// @version      1.0.1
+// @description  Несколько исправлений для Mist: бой не зависает, длинные списки показываются целиком.
 // @author       Неотразим
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -31,7 +31,7 @@
     return localStorage.getItem(SETTING + id) !== "off";
   }
 
-  // Разморозка боевой доски.
+  // Бой не зависает.
   //
   // Анимацию хода игра ведёт через TweenHexEngine.CSSAnimate.Animation:
   // play() вешает обработчик AnimationEnd, а тот первым делом проверяет
@@ -79,7 +79,7 @@
     setTimeout(() => clearInterval(waiting), 60000);
   }
 
-  // Кратность пагинации.
+  // Длинные списки.
   //
   // Вся пагинация игры — рюкзак, аукцион, рынок, склад, лавки, списки — рисуется
   // одной функцией MOD.pages и грузится одним запросом {page: N}: itemsScene
@@ -95,8 +95,8 @@
   // qs-ptn»), а 34 варианта в теле запроса сервер молча игнорирует. Поэтому блок
   // и собирается N запросами.
   function pagesMultiplier(window) {
-    // Флаг тот же, что у прежней версии правки в Auto Lumberjack: у кого
-    // остался его старый билд, пагинация не зацепится дважды.
+    // Флаг тот же, что у прежней версии этой правки: там, где остался её
+    // старый билд, пагинация не зацепится дважды.
     if (window.__alxPagesHooked) return;
     window.__alxPagesHooked = true;
 
@@ -390,8 +390,8 @@
   }
 
   const FIXES = [
-    { id: "battle-unfreeze", title: "Разморозка боя", run: battleUnfreeze },
-    { id: "pages", title: "Кратность пагинации", run: pagesMultiplier }
+    { id: "battle-unfreeze", title: "Бой не зависает", run: battleUnfreeze },
+    { id: "pages", title: "Длинные списки", run: pagesMultiplier }
   ];
 
   for (const fix of FIXES) {
