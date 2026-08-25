@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Fix My Mist
-// @namespace    https://templars-clan.online/
-// @version      1.0.1
+// @namespace    https://github.com/netherguy4/fix-my-mist
+// @version      1.0.2
 // @description  Несколько исправлений для Mist: бой не зависает, длинные списки показываются целиком.
-// @author       Неотразим
+// @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
 // @match        https://world.mist-game.ru/*
@@ -100,7 +100,7 @@
     if (window.__alxPagesHooked) return;
     window.__alxPagesHooked = true;
 
-    const KEY = "auto-lumberjack-pages-mult";
+    const KEY = "fix-my-mist-pages-mult";
     const STEPS = [1, 2, 3, 5, 10];
     const CLASS = "alx-pages-mult";
     const STUCK_MS = 15000;

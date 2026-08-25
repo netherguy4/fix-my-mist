@@ -20,7 +20,7 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
   const ticks = [];
   const posted = [];
   const menu = [];
-  const saved = Object.assign({ "auto-lumberjack-pages-mult": "5" }, store, settings);
+  const saved = Object.assign({ "fix-my-mist-pages-mult": "5" }, store, settings);
   const loader = { style: { display: "none" } };
   const serverPage = (n) => ({
     pages: { records: 3164, per_page: 12, pages: 264, page: n },
@@ -115,7 +115,7 @@ assert.equal(afterRender.result.items, 60, "догон склеивает бло
 const perList = game({
   rendered: true,
   intf: "auction",
-  store: { "auto-lumberjack-pages-mult:auction": "2" }
+  store: { "fix-my-mist-pages-mult:auction": "2" }
 });
 vm.runInNewContext(`
   ${script}
