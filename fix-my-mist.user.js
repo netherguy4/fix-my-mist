@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.2.1
-// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, длинные списки показываются целиком, лог боя не съезжает под поле.
+// @version      1.3.0
+// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -123,6 +123,80 @@
       }
       fmmStepHexTimerAdventure.__fmmRouteTimingPatched = true;
       C.stepHexTimerAdventure = fmmStepHexTimerAdventure;
+      return true;
+    }
+
+    if (patch()) return;
+    const waiting = setInterval(() => {
+      if (patch()) clearInterval(waiting);
+    }, 500);
+    setTimeout(() => clearInterval(waiting), 60000);
+  }
+
+  // Автоход без задержки.
+  //
+  // На карте мира сервер разрешает следующий шаг через date_next_step, но
+  // штатный автоход проверяет его только общим секундным таймером. Будим родной
+  // обработчик точно в разрешённый момент; сам маршрут и запрос остаются его.
+  function worldMapSpeed(window) {
+    function patch() {
+      const C = window.C;
+      const step = C?.stepHexTimer;
+      if (typeof step !== "function" || step.__fmmWorldSpeedPatched) return Boolean(step);
+      let waitingFor = 0;
+      let sentFor = 0;
+      const serverNow = () => Date.now() + Number(C.clockdiff || 0);
+      const canStep = () => C.PR?.intf === "worldMap"
+        && window.worldMap?.way?.length > 0
+        && C.PR.data?.coord !== undefined
+        && window.worldMap.coord !== C.PR.data.coord;
+
+      function send(ready, context, args) {
+        waitingFor = 0;
+        if (!canStep() || Number(C.PR.data.date_next_step) * 1000 !== ready) return;
+        C.sdate = new Date(serverNow());
+        C.PR.start_time_diff = 0;
+        sentFor = ready;
+        const result = step.apply(context, args);
+        // Один штатный тик не должен повторить шаг до ответа сервера.
+        C.PR.start_time_diff = 1;
+        return result;
+      }
+
+      function fmmStepHexTimer(value) {
+        const ready = Number(value) * 1000;
+        if (sentFor && sentFor !== ready) sentFor = 0;
+        if (sentFor && sentFor === ready) {
+          sentFor = 0;
+          return step.apply(this, arguments);
+        }
+        if (!canStep() || !Number.isFinite(ready)) {
+          waitingFor = 0;
+          return step.apply(this, arguments);
+        }
+
+        const now = serverNow();
+        if (ready <= now) return send(ready, this, arguments);
+        const result = step.apply(this, arguments);
+        if (waitingFor !== ready) {
+          waitingFor = ready;
+          const process = C.PR;
+          const context = this;
+          const args = arguments;
+          setTimeout(() => {
+            if (waitingFor !== ready) return;
+            if (C.PR !== process) {
+              waitingFor = 0;
+              return;
+            }
+            send(ready, context, args);
+          }, ready - now);
+        }
+        return result;
+      }
+
+      fmmStepHexTimer.__fmmWorldSpeedPatched = true;
+      C.stepHexTimer = fmmStepHexTimer;
       return true;
     }
 
@@ -472,6 +546,7 @@
   const FIXES = [
     { id: "battle-unfreeze", title: "Бой не зависает", experimental: true, run: battleUnfreeze },
     { id: "adventure-route", title: "Маршрут не обрывается", experimental: true, run: adventureRouteTiming },
+    { id: "world-map-speed", title: "Автоход без задержки", experimental: true, run: worldMapSpeed },
     { id: "battle-log-row", title: "Лог боя не съезжает", experimental: true, run: battleLogRow },
     { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier }
   ];

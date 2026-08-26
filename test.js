@@ -141,6 +141,7 @@ assert.equal(off.MOD.pages, nativePages, "выключенная правка н
 assert.deepEqual(off.menu, [
   "✔ Бой не зависает · эксперимент",
   "✔ Маршрут не обрывается · эксперимент",
+  "✔ Автоход без задержки · эксперимент",
   "✔ Лог боя не съезжает · эксперимент",
   "✘ Длинные списки · эксперимент"
 ],
@@ -149,6 +150,7 @@ assert.deepEqual(off.menu, [
 // Маршрут ждёт только остаток до next_turn_ms, а не следующий секундный тик.
 const route = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
+  "fix-my-mist:world-map-speed": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -171,6 +173,43 @@ assert.deepEqual(route.result.early, { steps: 0, startTimeDiff: 0, delay: 1 },
   "ранний нулевой тик ждёт только остаток до точного серверного времени");
 assert.equal(route.result.precise, 1, "точный таймер сразу делает шаг");
 assert.equal(route.result.steps, 1, "следующий секундный тик не дублирует запрос");
+
+// Автоход использует точный date_next_step, не дожидаясь секундного C.clock.
+const walk = game({ settings: {
+  "fix-my-mist:battle-unfreeze": "off",
+  "fix-my-mist:adventure-route": "off",
+  "fix-my-mist:battle-log-row": "off",
+  "fix-my-mist:pages": "off"
+} });
+walk.now = 1499;
+walk.Date = class extends Date {
+  constructor(value) { super(value === undefined ? walk.now : value); }
+  static now() { return walk.now; }
+};
+walk.C.clockdiff = 0;
+walk.C.sdate = new walk.Date(walk.now);
+walk.C.PR = { intf: "worldMap", start_time_diff: 1, data: { coord: [1, 0], date_next_step: 2 } };
+walk.worldMap = { coord: [0, 0], way: [[2, 0]] };
+walk.steps = 0;
+walk.C.stepHexTimer = (value) => {
+  const diff = Math.max(0, value - Math.floor(+walk.C.sdate / 1000));
+  if (diff === 0 && walk.C.PR.start_time_diff === 0) walk.steps++;
+  walk.C.PR.start_time_diff = diff;
+};
+vm.runInNewContext(`
+  ${script}
+  C.stepHexTimer(C.PR.data.date_next_step, "#trip_time_out");
+  const early = { steps, delay: delays[0] };
+  now = 2000;
+  timers.shift()();
+  const precise = steps;
+  C.stepHexTimer(C.PR.data.date_next_step, "#trip_time_out");
+  result = { early, precise, steps };
+`, walk);
+assert.deepEqual(walk.result.early, { steps: 0, delay: 501 },
+  "автоход ждёт только остаток до серверного date_next_step");
+assert.equal(walk.result.precise, 1, "в разрешённый момент штатный автоход делает шаг");
+assert.equal(walk.result.steps, 1, "следующий секундный тик не повторяет шаг");
 
 // Разморозка боя: анимация, чей AnimationStart потерялся, всё равно
 // завершается — иначе TaskWorker объекта навсегда остаётся заблокированным.
