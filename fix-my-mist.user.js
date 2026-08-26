@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.3.0
-// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, длинные списки показываются целиком, лог боя не съезжает под поле.
+// @version      1.4.0
+// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -197,6 +197,69 @@
 
       fmmStepHexTimer.__fmmWorldSpeedPatched = true;
       C.stepHexTimer = fmmStepHexTimer;
+      return true;
+    }
+
+    if (patch()) return;
+    const waiting = setInterval(() => {
+      if (patch()) clearInterval(waiting);
+    }, 500);
+    setTimeout(() => clearInterval(waiting), 60000);
+  }
+
+  // Связь не обрывается.
+  //
+  // Сокет «чата» — это канал сервера в клиент целиком: по нему приходят и
+  // строки чата, и команды игры. Замер вживую в бою: 47 пакетов подряд, все до
+  // одного — battleMove и battleRefresh. Поэтому упавший сокет замораживает не
+  // только чат, но и поле боя: доска стоит, пока игрок не нажмёт «обновить».
+  //
+  // Вернуть сокет должен клиент, но обе его дороги ведут в тупик. Свой
+  // реконнект Socket.connect() съедает сам: увидев прежний conn, он закрывает
+  // уже закрытое соединение и выходит, а второго close SockJS не пришлёт.
+  // Остаётся дорога через игру: на close она шлёт get_key и заводит новый сокет
+  // только из колбэка ответа, а ошибку запроса C.post глотает молча
+  // (errorHandler колбэк не зовёт). Один сетевой сбой — и связь потеряна
+  // навсегда, причём INTF.CHAT.connected остаётся true, а запасного опроса нет:
+  // chat_list заводится только автообновлением при смене канала.
+  //
+  // Правка сторожит сокет и, если он мёртв дольше форы родного пути, зовёт
+  // родной же autoReconnect. Заодно закрывает сокет, который игра теряет при
+  // создании нового: потерянный остаётся открытым и шлёт те же команды второй раз.
+  function socketReconnect(window) {
+    // Родному пути хватает ответа get_key плюс его собственных трёх секунд.
+    // Больше не ждём: каждая лишняя секунда — это замерший бой.
+    const DEAD_MS = 5000;
+    function patch() {
+      const CHAT = window.INTF?.CHAT;
+      if (!CHAT || CHAT.__fmmSocketReconnect) return Boolean(CHAT);
+      CHAT.__fmmSocketReconnect = true;
+
+      const createSocket = CHAT.createSocket;
+      CHAT.createSocket = function () {
+        const old = this.socket;
+        const result = createSocket.apply(this, arguments);
+        if (old && old !== this.socket && old.conn) {
+          old.conn.close();
+          old.conn = false;
+        }
+        return result;
+      };
+
+      let deadSince = 0;
+      setInterval(() => {
+        const conn = CHAT.socket && CHAT.socket.conn;
+        // SockJS: 0 — соединяется, 1 — открыт. false здесь — съеденный реконнект.
+        if (conn && (conn.readyState === 0 || conn.readyState === 1)) {
+          deadSince = 0;
+          return;
+        }
+        const now = Date.now();
+        if (!deadSince) deadSince = now;
+        if (now - deadSince < DEAD_MS) return;
+        deadSince = 0;
+        CHAT.autoReconnect();
+      }, 1000);
       return true;
     }
 
@@ -547,6 +610,7 @@
     { id: "battle-unfreeze", title: "Бой не зависает", experimental: true, run: battleUnfreeze },
     { id: "adventure-route", title: "Маршрут не обрывается", experimental: true, run: adventureRouteTiming },
     { id: "world-map-speed", title: "Автоход без задержки", experimental: true, run: worldMapSpeed },
+    { id: "socket-reconnect", title: "Связь не обрывается", experimental: true, run: socketReconnect },
     { id: "battle-log-row", title: "Лог боя не съезжает", experimental: true, run: battleLogRow },
     { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier }
   ];

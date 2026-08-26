@@ -142,6 +142,7 @@ assert.deepEqual(off.menu, [
   "✔ Бой не зависает · эксперимент",
   "✔ Маршрут не обрывается · эксперимент",
   "✔ Автоход без задержки · эксперимент",
+  "✔ Связь не обрывается · эксперимент",
   "✔ Лог боя не съезжает · эксперимент",
   "✘ Длинные списки · эксперимент"
 ],
@@ -151,6 +152,7 @@ assert.deepEqual(off.menu, [
 const route = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
   "fix-my-mist:world-map-speed": "off",
+  "fix-my-mist:socket-reconnect": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -178,6 +180,7 @@ assert.equal(route.result.steps, 1, "следующий секундный ти�
 const walk = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
   "fix-my-mist:adventure-route": "off",
+  "fix-my-mist:socket-reconnect": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -267,5 +270,52 @@ vm.runInNewContext(`
   result = { dispatched };
 `, looped);
 assert.equal(looped.result.dispatched, 0, "зациклённую ходьбу страховка не обрывает");
+
+// Связь не обрывается: мёртвый сокет поднимает сторож, раз родной путь молчит.
+const chat = game({ settings: {
+  "fix-my-mist:battle-unfreeze": "off",
+  "fix-my-mist:adventure-route": "off",
+  "fix-my-mist:world-map-speed": "off",
+  "fix-my-mist:battle-log-row": "off",
+  "fix-my-mist:pages": "off"
+} });
+chat.now = 1000;
+chat.Date = { now: () => chat.now };
+chat.reconnects = 0;
+chat.closed = 0;
+const chatConn = () => ({ readyState: 1, close() { chat.closed++; } });
+chat.INTF = { CHAT: {
+  socket: { conn: chatConn() },
+  createSocket() { this.socket = { conn: chatConn() }; return this; },
+  autoReconnect() { chat.reconnects++; this.createSocket(); }
+} };
+vm.runInNewContext(`
+  ${script}
+  const watch = ticks[0];
+  const CHAT = INTF.CHAT;
+  // Сокет умер ровно так, как его убивает съеденный реконнект самой игры.
+  CHAT.socket.conn = false;
+  watch();
+  now += 3000;
+  watch();
+  const early = reconnects;
+  now += 3000;
+  watch();
+  const late = reconnects;
+  now += 10000;
+  watch();
+  watch();
+  const alive = CHAT.socket.conn.readyState;
+  // Игра при новом сокете теряет прежний: он остаётся открытым и шлёт дубли.
+  const lost = CHAT.socket;
+  CHAT.createSocket();
+  result = { early, late, after: reconnects, alive, closed, lostConn: lost.conn };
+`, chat);
+assert.equal(chat.result.early, 0, "родному пути дают фору, сторож не лезет сразу");
+assert.equal(chat.result.late, 1, "мёртвый сокет сторож поднимает сам");
+assert.equal(chat.result.after, 1, "живой сокет второй раз не переподключают");
+assert.equal(chat.result.alive, 1, "после сторожа сокет снова открыт");
+assert.equal(chat.result.closed, 1, "потерянный сокет закрывается, иначе сообщения придут дважды");
+assert.equal(chat.result.lostConn, false, "у потерянного сокета соединение снято");
 
 console.log("fix-my-mist ok");
