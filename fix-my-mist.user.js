@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.2.0
+// @version      1.2.1
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -84,17 +84,41 @@
   // Таймер игры ждёт округлённый next_turn (секунды), хотя сервер присылает
   // точный next_turn_ms. Поэтому следующий шаг иногда уходит на сотни
   // миллисекунд раньше, сервер отвечает action_success=false, а клиент очищает
-  // оставшийся маршрут. Пропускаем ранний тик; следующий родной тик сделает шаг.
+  // оставшийся маршрут. Ставим шаг точно на next_turn_ms, а следующий родной
+  // тик гасим как дубль, пока сервер ещё не успел прислать новую позицию.
   function adventureRouteTiming(window) {
     function patch() {
       const C = window.C;
       const step = C?.stepHexTimerAdventure;
       if (typeof step !== "function" || step.__fmmRouteTimingPatched) return Boolean(step);
+      let waitingFor = 0;
+      let sentFor = 0;
       function fmmStepHexTimerAdventure(timer) {
-        if (timer?.diff === 0 && Number(C.PR?.next_turn_ms) > +C.sdate) {
+        const next = Number(C.PR?.next_turn_ms);
+        if (sentFor && sentFor !== next) sentFor = 0;
+        if (timer?.diff === 0 && sentFor && sentFor === next) {
+          sentFor = 0;
           C.PR.start_time_diff = 0;
           return;
         }
+        if (timer?.diff === 0 && next > +C.sdate) {
+          C.PR.start_time_diff = 0;
+          if (waitingFor !== next) {
+            waitingFor = next;
+            const process = C.PR;
+            const context = this;
+            const args = arguments;
+            setTimeout(() => {
+              if (waitingFor !== next) return;
+              waitingFor = 0;
+              if (C.PR !== process || Number(process.next_turn_ms) !== next) return;
+              sentFor = next;
+              step.apply(context, args);
+            }, next - +C.sdate);
+          }
+          return;
+        }
+        waitingFor = 0;
         return step.apply(this, arguments);
       }
       fmmStepHexTimerAdventure.__fmmRouteTimingPatched = true;

@@ -17,6 +17,7 @@ for (const tag of ["@version", "@updateURL", "@downloadURL", "@match"]) {
 // родной пагинацией (так бывает, когда правка встала после первого рендера).
 function game({ rendered = false, store, intf, settings = {} } = {}) {
   const timers = [];
+  const delays = [];
   const ticks = [];
   const posted = [];
   const menu = [];
@@ -43,12 +44,12 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
       querySelector: (sel) => (sel === ".page" && rendered ? {} : null)
     },
     location: { reload() {} },
-    setTimeout: (fn) => timers.push(fn),
+    setTimeout: (fn, ms) => { timers.push(fn); delays.push(ms); },
     clearTimeout() {},
     setInterval: (fn) => ticks.push(fn),
     clearInterval() {},
     GM_registerMenuCommand: (label) => menu.push(label) && menu.length,
-    timers, ticks, posted, loader, menu, saved, serverPage,
+    timers, delays, ticks, posted, loader, menu, saved, serverPage,
     result: null
   };
   sandbox.window = sandbox;
@@ -145,8 +146,12 @@ assert.deepEqual(off.menu, [
 ],
   "меню показывает состояние каждой правки");
 
-// Маршрут ждёт точный next_turn_ms, даже когда секундный таймер уже показал 0.
-const route = game();
+// Маршрут ждёт только остаток до next_turn_ms, а не следующий секундный тик.
+const route = game({ settings: {
+  "fix-my-mist:battle-unfreeze": "off",
+  "fix-my-mist:battle-log-row": "off",
+  "fix-my-mist:pages": "off"
+} });
 route.C.sdate = 1499;
 route.C.PR.next_turn_ms = 1500;
 route.C.PR.start_time_diff = 1;
@@ -155,14 +160,17 @@ route.C.stepHexTimerAdventure = () => { route.steps++; };
 vm.runInNewContext(`
   ${script}
   C.stepHexTimerAdventure({ diff: 0 });
-  const early = { steps, startTimeDiff: C.PR.start_time_diff };
+  const early = { steps, startTimeDiff: C.PR.start_time_diff, delay: delays[0] };
   C.sdate = 1500;
+  timers.shift()();
+  const precise = steps;
   C.stepHexTimerAdventure({ diff: 0 });
-  result = { early, steps };
+  result = { early, precise, steps };
 `, route);
-assert.deepEqual(route.result.early, { steps: 0, startTimeDiff: 0 },
-  "ранний нулевой тик не отправляет шаг и оставляет маршрут готовым к следующему тику");
-assert.equal(route.result.steps, 1, "в точное серверное время родной обработчик делает шаг");
+assert.deepEqual(route.result.early, { steps: 0, startTimeDiff: 0, delay: 1 },
+  "ранний нулевой тик ждёт только остаток до точного серверного времени");
+assert.equal(route.result.precise, 1, "точный таймер сразу делает шаг");
+assert.equal(route.result.steps, 1, "следующий секундный тик не дублирует запрос");
 
 // Разморозка боя: анимация, чей AnimationStart потерялся, всё равно
 // завершается — иначе TaskWorker объекта навсегда остаётся заблокированным.
