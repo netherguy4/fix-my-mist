@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.1.0
-// @description  Несколько исправлений для Mist: бой не зависает, длинные списки показываются целиком, лог боя не съезжает под поле.
+// @version      1.2.0
+// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -72,6 +72,36 @@
     }
 
     // Клиент игры грузится своим прелоадером — движка на document-start ещё нет.
+    if (patch()) return;
+    const waiting = setInterval(() => {
+      if (patch()) clearInterval(waiting);
+    }, 500);
+    setTimeout(() => clearInterval(waiting), 60000);
+  }
+
+  // Маршрут не обрывается.
+  //
+  // Таймер игры ждёт округлённый next_turn (секунды), хотя сервер присылает
+  // точный next_turn_ms. Поэтому следующий шаг иногда уходит на сотни
+  // миллисекунд раньше, сервер отвечает action_success=false, а клиент очищает
+  // оставшийся маршрут. Пропускаем ранний тик; следующий родной тик сделает шаг.
+  function adventureRouteTiming(window) {
+    function patch() {
+      const C = window.C;
+      const step = C?.stepHexTimerAdventure;
+      if (typeof step !== "function" || step.__fmmRouteTimingPatched) return Boolean(step);
+      function fmmStepHexTimerAdventure(timer) {
+        if (timer?.diff === 0 && Number(C.PR?.next_turn_ms) > +C.sdate) {
+          C.PR.start_time_diff = 0;
+          return;
+        }
+        return step.apply(this, arguments);
+      }
+      fmmStepHexTimerAdventure.__fmmRouteTimingPatched = true;
+      C.stepHexTimerAdventure = fmmStepHexTimerAdventure;
+      return true;
+    }
+
     if (patch()) return;
     const waiting = setInterval(() => {
       if (patch()) clearInterval(waiting);
@@ -417,6 +447,7 @@
   // правкой держим однострочной: витрина разбирает её регулярным выражением.
   const FIXES = [
     { id: "battle-unfreeze", title: "Бой не зависает", experimental: true, run: battleUnfreeze },
+    { id: "adventure-route", title: "Маршрут не обрывается", experimental: true, run: adventureRouteTiming },
     { id: "battle-log-row", title: "Лог боя не съезжает", experimental: true, run: battleLogRow },
     { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier }
   ];

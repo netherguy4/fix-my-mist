@@ -37,6 +37,8 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
     },
     document: {
       addEventListener() {},
+      createElement: () => ({}),
+      documentElement: { appendChild() {} },
       getElementById: () => loader,
       querySelector: (sel) => (sel === ".page" && rendered ? {} : null)
     },
@@ -135,8 +137,32 @@ vm.runInNewContext(`
 `, off);
 assert.deepEqual(off.result.posted, [], "выключенная правка не ходит за страницами");
 assert.equal(off.MOD.pages, nativePages, "выключенная правка не подменяет MOD.pages");
-assert.deepEqual(off.menu, ["✔ Бой не зависает", "✘ Длинные списки"],
+assert.deepEqual(off.menu, [
+  "✔ Бой не зависает · эксперимент",
+  "✔ Маршрут не обрывается · эксперимент",
+  "✔ Лог боя не съезжает · эксперимент",
+  "✘ Длинные списки · эксперимент"
+],
   "меню показывает состояние каждой правки");
+
+// Маршрут ждёт точный next_turn_ms, даже когда секундный таймер уже показал 0.
+const route = game();
+route.C.sdate = 1499;
+route.C.PR.next_turn_ms = 1500;
+route.C.PR.start_time_diff = 1;
+route.steps = 0;
+route.C.stepHexTimerAdventure = () => { route.steps++; };
+vm.runInNewContext(`
+  ${script}
+  C.stepHexTimerAdventure({ diff: 0 });
+  const early = { steps, startTimeDiff: C.PR.start_time_diff };
+  C.sdate = 1500;
+  C.stepHexTimerAdventure({ diff: 0 });
+  result = { early, steps };
+`, route);
+assert.deepEqual(route.result.early, { steps: 0, startTimeDiff: 0 },
+  "ранний нулевой тик не отправляет шаг и оставляет маршрут готовым к следующему тику");
+assert.equal(route.result.steps, 1, "в точное серверное время родной обработчик делает шаг");
 
 // Разморозка боя: анимация, чей AnimationStart потерялся, всё равно
 // завершается — иначе TaskWorker объекта навсегда остаётся заблокированным.
