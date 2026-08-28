@@ -336,4 +336,45 @@ assert.deepEqual(traced.result, [
   ["game<-", "6bdcb7", "inventory_stored:a62bf8"]
 ], "трасса пишет отправку, устаревший ответ и свежий токен");
 
+// Ответ без paths на токенную ссылку: скрипт берёт свежие токены из /?login и
+// повторяет тот же запрос — и с коллбэком (dontrun), и через C.run.
+const healed = game({ rendered: true });
+healed.APK = "apk";
+healed.PRK = "prk";
+healed.MD5 = { Hash: (s) => "md5:" + s };
+healed.jQuery = () => ({ ajaxError() {} });
+healed.jQuery.ajax = (o) => {
+  healed.logins.push(o.data.pass_auth);
+  o.success(JSON.stringify({ paths: { inventory_stored: "ctrl=Char&__idlnk=inventory_stored&__lnkprtn=a62bf8dcfc" } }));
+};
+healed.logins = [];
+healed.C.post = function (pname, data, isLocation, dontrun, cb) {
+  const qs = healed.C.paths[pname];
+  healed.posted.push(tok(qs));
+  const pack = tok(qs) === "6bdcb7"
+    ? { process: { qs, data: healed.serverPage(1) } }
+    : { paths: { inventory_stored: qs }, process: { qs, data: healed.serverPage(1) } };
+  return dontrun ? cb(JSON.stringify(pack)) : healed.C.run(JSON.stringify(pack));
+};
+const tok = (s) => (String(s || "").match(/__lnkprtn=(\w{6})/) || [])[1];
+vm.runInNewContext(script + `
+  const got = [];
+  C.paths.inventory_stored = "ctrl=Char&__idlnk=inventory_stored&__lnkprtn=6bdcb72f55&h=1";
+  C.post("inventory_stored", { action: "use" }, false, true, (raw) => got.push(JSON.parse(raw).paths ? "ok" : "stale"));
+  C.paths.inventory_stored = "ctrl=Char&__idlnk=inventory_stored&__lnkprtn=6bdcb72f55&h=1";
+  C.post("inventory_stored", { page: 3 });
+  result = {
+    got, logins: logins.length, posted: posted.filter(Boolean), token: C.paths.inventory_stored,
+    trace: JSON.parse(localStorage.getItem("fix-my-mist:trace")).map((row) => row.slice(1)).filter((r) => /heal|retry/.test(r[0]))
+  };
+`, healed);
+assert.deepEqual(healed.result.got, ["stale", "ok"], "коллбэк получает и устаревший ответ, и настоящий после повтора");
+assert.deepEqual(healed.result.posted, ["6bdcb7", "a62bf8", "6bdcb7", "a62bf8"], "повтор уходит с новым токеном, по одному на запрос");
+assert.equal(healed.result.logins, 2, "свежие токены берутся из /?login");
+assert.equal(healed.C.lastpack.process.qs, healed.result.token, "после повтора через C.run экран — от настоящего ответа");
+assert.deepEqual(healed.result.trace, [
+  ["heal", "inventory_stored"], ["retry", "inventory_stored", "a62bf8"],
+  ["heal", "inventory_stored"], ["retry", "inventory_stored", "a62bf8"]
+], "починка видна в трассе");
+
 console.log("fix-my-mist ok");

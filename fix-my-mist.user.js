@@ -321,6 +321,7 @@
     let hooked = false;
     let rerun = false;
     let ownPost = false;
+    let pending = {};
     // Экраны вне itemsScene носят имя запроса в параметрах контрола UI.pages.
     let ctrlParams = null;
 
@@ -598,13 +599,66 @@
       };
 
       const post = C.post;
-      C.post = function alxPost(pname, data, isLocation) {
+
+      // Ответ на токенную ссылку без paths — сервер счёл её устаревшей и запрос
+      // проигнорировал (ссылка сгорает, например, когда предмет запускает бой:
+      // ответ-бой нового токена рюкзака не несёт). Свежий комплект отдаёт
+      // /?login, старые токены при этом живут; затем тот же запрос уходит ещё раз.
+      function staleName(pack) {
+        const qs = pack && pack.process && pack.process.qs;
+        if (!tok(qs) || pack.paths) return;
+        return (qs.match(/__idlnk=(\w+)/) || [])[1];
+      }
+
+      function heal(name) {
+        const args = pending[name];
+        if (!args || !window.jQuery) return;
+        delete pending[name];
+        trace("heal", name);
+        window.jQuery.ajax({
+          type: "POST",
+          url: "/?login",
+          cache: false,
+          data: { pass_auth: window.MD5.Hash(window.APK + window.PRK) },
+          success(text) {
+            let fresh;
+            try {
+              fresh = JSON.parse(text);
+            } catch {
+              return;
+            }
+            if (!fresh.paths) return;
+            Object.assign(window.C.paths, fresh.paths);
+            trace("retry", name, tok(window.C.paths[name]));
+            post.apply(window.C, args);
+          }
+        });
+      }
+
+      C.post = function alxPost(pname, data, isLocation, dontrun, cb) {
         const paths = window.C.paths || {};
         const path = isLocation ? (paths.location || {})[pname] : paths[pname] || (paths.location || {})[pname];
         const t = tok(path);
         // При TR игра запрос не шлёт — в трассе он только запутает.
-        if (t && !window.TR && pname !== "battle") trace((ownPost ? "pages" : "game") + "->", pname, t, JSON.stringify(data || {}).slice(0, 80));
-        return post.apply(this, arguments);
+        if (!t || window.TR) return post.apply(this, arguments);
+        if (pname !== "battle") trace((ownPost ? "pages" : "game") + "->", pname, t, JSON.stringify(data || {}).slice(0, 80));
+        if (ownPost) return post.apply(this, arguments);
+        const args = Array.prototype.slice.call(arguments);
+        if (dontrun && typeof cb === "function") {
+          args[4] = function (raw) {
+            let pack = null;
+            try {
+              pack = JSON.parse(raw);
+            } catch {
+              // При TR коллбэк зовут без ответа.
+            }
+            const result = cb.apply(this, arguments);
+            heal(staleName(pack));
+            return result;
+          };
+        }
+        pending[pname] = args;
+        return post.apply(this, args);
       };
       if (typeof window.jQuery === "function") {
         window.jQuery(document).ajaxError((_, xhr, opts) => {
@@ -617,7 +671,10 @@
       C.run = function alxRun() {
         ctrlParams = null;
         const result = run.apply(this, arguments);
-        if (!rerun) tracePack(window.C.lastpack, "game");
+        if (!rerun) {
+          tracePack(window.C.lastpack, "game");
+          heal(staleName(window.C.lastpack));
+        }
         // Сцена рисуется коллбэком, параметры UI.pages появляются только там.
         setTimeout(() => {
           try {
