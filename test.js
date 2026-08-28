@@ -69,7 +69,8 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
       cb(JSON.stringify({ paths: {}, process: { data: serverPage(data.page) } }));
     },
     run(raw) {
-      sandbox.C.PR.data = JSON.parse(raw).process.data;
+      sandbox.C.lastpack = JSON.parse(raw);
+      sandbox.C.PR.data = sandbox.C.lastpack.process.data;
     }
   };
   return sandbox;
@@ -317,5 +318,22 @@ assert.equal(chat.result.after, 1, "живой сокет второй раз н
 assert.equal(chat.result.alive, 1, "после сторожа сокет снова открыт");
 assert.equal(chat.result.closed, 1, "потерянный сокет закрывается, иначе сообщения придут дважды");
 assert.equal(chat.result.lostConn, false, "у потерянного сокета соединение снято");
+
+// Трасса токенов ссылок: отправка помечается тем, кто её сделал, а ответ на
+// устаревший токен (без paths) — STALE.
+const traced = game({ rendered: true });
+vm.runInNewContext(script + FLUSH + `
+  loader.style.display = "block";
+  C.paths.inventory_stored = "ctrl=Char&__lnkprtn=6bdcb72f55&h=1";
+  C.post("inventory_stored", { action: "use", page: 1 }, false, true, () => {});
+  C.run(JSON.stringify({ process: { qs: "ctrl=Char&__lnkprtn=6bdcb72f55", data: serverPage(1) } }));
+  C.run(JSON.stringify({ paths: { inventory_stored: "ctrl=Char&__lnkprtn=a62bf8dcfc" }, process: { qs: "ctrl=Char&__lnkprtn=6bdcb72f55", data: serverPage(1) } }));
+  result = JSON.parse(localStorage.getItem("fix-my-mist:trace")).map((row) => row.slice(1));
+`, traced);
+assert.deepEqual(traced.result, [
+  ["game->", "inventory_stored", "6bdcb7", '{"action":"use","page":1}'],
+  ["game<-", "6bdcb7", "STALE"],
+  ["game<-", "6bdcb7", "inventory_stored:a62bf8"]
+], "трасса пишет отправку, устаревший ответ и свежий токен");
 
 console.log("fix-my-mist ok");

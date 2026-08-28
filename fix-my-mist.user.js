@@ -319,6 +319,8 @@
 
     let busy = false;
     let hooked = false;
+    let rerun = false;
+    let ownPost = false;
     // Экраны вне itemsScene носят имя запроса в параметрах контрола UI.pages.
     let ctrlParams = null;
 
@@ -382,6 +384,34 @@
 
     function stamp(data) {
       data.__alxMult = mult();
+    }
+
+    // Трасса одноразовых токенов ссылок (__lnkprtn). Сервер выдаёт новый токен в
+    // каждом ответе, а на устаревший отвечает без paths и молча не выполняет
+    // действие — так «не применяется ожерелье» до перезагрузки. Кто израсходовал
+    // токен, по симптому не видно, поэтому пишем в localStorage последние
+    // отправки (игра или наш множитель), ответы (свежий токен или STALE) и
+    // ошибки запросов. Смотреть: localStorage["fix-my-mist:trace"].
+    const TRACE = "fix-my-mist:trace";
+    const tok = (s) => (String(s || "").match(/__lnkprtn=(\w{6})/) || [])[1];
+
+    function trace() {
+      let log;
+      try {
+        log = JSON.parse(localStorage.getItem(TRACE)) || [];
+      } catch {
+        log = [];
+      }
+      log.push([new Date().toISOString().slice(11, 19)].concat(Array.prototype.slice.call(arguments)));
+      localStorage.setItem(TRACE, JSON.stringify(log.slice(-80)));
+    }
+
+    function tracePack(pack, from) {
+      const sent = tok(pack && pack.process && pack.process.qs);
+      if (!sent) return;
+      const paths = pack.paths || {};
+      const fresh = Object.keys(paths).map((k) => k + ":" + tok(paths[k])).join(",");
+      trace(from + "<-", sent, fresh || "STALE");
     }
 
     // Сервер отдаёт страницу за ~250 мс и отвечает 423 на параллельные запросы,
@@ -448,7 +478,12 @@
         // Блок показывается на месте своей первой страницы.
         if (part.pages) part.pages.page = first;
         part.__alxMult = size;
-        window.C.run(JSON.stringify(lastPack));
+        rerun = true;
+        try {
+          window.C.run(JSON.stringify(lastPack));
+        } finally {
+          rerun = false;
+        }
       };
 
       const step = () => {
@@ -459,6 +494,7 @@
         const wanted = page;
         // Каждый ответ гасит лоадер своим обработчиком — поднимаем его снова.
         loading(true);
+        ownPost = true;
         window.C.post(pname, Object.assign({ page: wanted }, extra), isLocation, true, (raw) => {
           let pack;
           try {
@@ -467,6 +503,7 @@
             stop();
             return;
           }
+          tracePack(pack, "pages");
           // Сервер выдаёт новый путь на каждый ответ — держим свежий.
           if (pack.paths) Object.assign(window.C.paths, pack.paths);
           const part = pack.process && pack.process.data;
@@ -484,6 +521,7 @@
           page = wanted + 1;
           step();
         });
+        ownPost = false;
       };
 
       step();
@@ -522,7 +560,7 @@
       const C = window.C;
       const MOD = window.MOD;
       const UI = window.UI;
-      if (typeof MOD?.pages !== "function" || typeof C?.run !== "function") return false;
+      if (typeof MOD?.pages !== "function" || typeof C?.run !== "function" || typeof C.post !== "function") return false;
       if (typeof UI?.pages !== "function") return false;
       hooked = true;
 
@@ -557,10 +595,27 @@
         return setHandlers.apply(this, arguments);
       };
 
+      const post = C.post;
+      C.post = function alxPost(pname, data, isLocation) {
+        const paths = window.C.paths || {};
+        const path = isLocation ? (paths.location || {})[pname] : paths[pname] || (paths.location || {})[pname];
+        const t = tok(path);
+        // При TR игра запрос не шлёт — в трассе он только запутает.
+        if (t && !window.TR) trace((ownPost ? "pages" : "game") + "->", pname, t, JSON.stringify(data || {}).slice(0, 80));
+        return post.apply(this, arguments);
+      };
+      if (typeof window.jQuery === "function") {
+        window.jQuery(document).ajaxError((_, xhr, opts) => {
+          const t = tok(opts && opts.url);
+          if (t) trace("error", xhr && xhr.status, t);
+        });
+      }
+
       const run = C.run;
       C.run = function alxRun() {
         ctrlParams = null;
         const result = run.apply(this, arguments);
+        if (!rerun) tracePack(window.C.lastpack, "game");
         // Сцена рисуется коллбэком, параметры UI.pages появляются только там.
         setTimeout(() => {
           try {
