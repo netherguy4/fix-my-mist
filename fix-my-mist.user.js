@@ -403,12 +403,14 @@
         log = [];
       }
       log.push([new Date().toISOString().slice(11, 19)].concat(Array.prototype.slice.call(arguments)));
-      localStorage.setItem(TRACE, JSON.stringify(log.slice(-80)));
+      localStorage.setItem(TRACE, JSON.stringify(log.slice(-200)));
     }
 
     function tracePack(pack, from) {
-      const sent = tok(pack && pack.process && pack.process.qs);
-      if (!sent) return;
+      const qs = pack && pack.process && pack.process.qs;
+      const sent = tok(qs);
+      // Ходы боя идут раз в секунду и вымывают из буфера всё остальное.
+      if (!sent || /__path=battle&/.test(qs)) return;
       const paths = pack.paths || {};
       const fresh = Object.keys(paths).map((k) => k + ":" + tok(paths[k])).join(",");
       trace(from + "<-", sent, fresh || "STALE");
@@ -601,7 +603,7 @@
         const path = isLocation ? (paths.location || {})[pname] : paths[pname] || (paths.location || {})[pname];
         const t = tok(path);
         // При TR игра запрос не шлёт — в трассе он только запутает.
-        if (t && !window.TR) trace((ownPost ? "pages" : "game") + "->", pname, t, JSON.stringify(data || {}).slice(0, 80));
+        if (t && !window.TR && pname !== "battle") trace((ownPost ? "pages" : "game") + "->", pname, t, JSON.stringify(data || {}).slice(0, 80));
         return post.apply(this, arguments);
       };
       if (typeof window.jQuery === "function") {
