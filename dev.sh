@@ -15,7 +15,7 @@ sed -e "s|^// @name .*|// @name         Fix My Mist (dev)|" \
 [ -n "$1" ] && exit 0
 
 git -C .mirror checkout -q -B dev
-git -C .mirror commit -qam "$ver"
+git -C .mirror commit -qam "$ver" || true
 git -C .mirror push -q -f origin dev
 git -C .mirror checkout -q main
 echo "dev $ver → $raw"
