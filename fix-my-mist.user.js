@@ -610,7 +610,7 @@
         return (qs.match(/__idlnk=(\w+)/) || [])[1];
       }
 
-      function heal(name) {
+      function heal(name, again) {
         const args = pending[name];
         if (!args || !window.jQuery) return;
         delete pending[name];
@@ -620,6 +620,15 @@
           url: "/?login",
           cache: false,
           data: { pass_auth: window.MD5.Hash(window.APK + window.PRK) },
+          // Параллельный запрос (rs-пинг) даёт 423 — одна повторная попытка.
+          error(xhr) {
+            trace("heal-error", xhr && xhr.status);
+            if (again) return;
+            setTimeout(() => {
+              pending[name] = args;
+              heal(name, true);
+            }, 1500);
+          },
           success(text) {
             let fresh;
             try {
@@ -673,7 +682,13 @@
         const result = run.apply(this, arguments);
         if (!rerun) {
           tracePack(window.C.lastpack, "game");
-          heal(staleName(window.C.lastpack));
+          const stale = staleName(window.C.lastpack);
+          if (stale) {
+            // Экран от проигнорированного запроса догружать незачем: свои
+            // страницы столкнутся с /?login (423), а повтор всё равно перерисует.
+            heal(stale);
+            return result;
+          }
         }
         // Сцена рисуется коллбэком, параметры UI.pages появляются только там.
         setTimeout(() => {
