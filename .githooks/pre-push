@@ -1,0 +1,7 @@
+#!/bin/bash
+# При пуше ветки dev дев-сборка уезжает на зеркало сама (см. dev.sh); упавшие
+# тесты отменяют и пуш. Включается один раз: git config core.hooksPath .githooks
+while read -r _ _ remote _; do
+  [ "$remote" = refs/heads/dev ] && exec ./dev.sh
+done
+exit 0
