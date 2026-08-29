@@ -1,0 +1,13 @@
+[-1457513ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://i.mist-game.ru/interface_v4/js/compile/chat.min.v1.js:0
+[-1451383ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://ajax.googleapis.com/ajax/libs/jquery/1.5.2//jquery.min.js:15
+[-1442998ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[-1083653ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ -681085ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://i.$=username$.mist-game.org/interface_v4/i/interface/compile/compile.png:0
+[ -365125ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ -363186ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ -278370ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ -277736ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Char&a=invStored&__path=inventory_stored&__idlnk=inventory_stored&__lnkprtn=1710383e86f1f051104745a7cf1c3faf&h=77919b214013670f039f93ce853b08c9&h1=c9e1e290a256b07d39738686a6d98857:0
+[ -269503ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ -179409ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ -178768ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Char&a=invStored&__path=inventory_stored&__idlnk=inventory_stored&__lnkprtn=e503e059c0e516382f30ea92c7de10bc&h=31a6791df2d66d555629c3ff2f16ca9d&h1=288ff8ce343010f52ff590a44c507744:0
+[-1457513ms] [LOG] *** SockJS CDN is being retired on Dec 1st *** Please transition to a public CDN. See https://github.com/sockjs/sockjs-client/issues/198 for more information. @ https://i.mist-game.ru/interface_v4/js/compile/chat.min.v1.js:0

@@ -600,48 +600,90 @@
 
       const post = C.post;
 
-      // Ответ на токенную ссылку без paths — сервер счёл её устаревшей и запрос
-      // проигнорировал (ссылка сгорает, например, когда предмет запускает бой:
-      // ответ-бой нового токена рюкзака не несёт). Свежий комплект отдаёт
-      // /?login, старые токены при этом живут; затем тот же запрос уходит ещё раз.
-      function staleName(pack) {
+      // Одноразовые токены ссылок. Ответ на ссылку X несёт её новый токен; если
+      // в paths его нет — X мертва (предмет запустил бой, а ответ-бой несёт только
+      // ссылки боя), и следующий запрос по ней сервер молча проигнорирует: ответ
+      // без paths вовсе. Свежий комплект отдаёт /?login (старые токены при этом
+      // живут), поэтому мёртвую ссылку обновляем в фоне заранее, а
+      // проигнорированный запрос не рисуем — чиним и повторяем.
+      const dead = {};
+      let waiting = null;
+
+      function linkName(pack) {
         const qs = pack && pack.process && pack.process.qs;
-        if (!tok(qs) || pack.paths) return;
-        return (qs.match(/__idlnk=(\w+)/) || [])[1];
+        return tok(qs) ? (qs.match(/__idlnk=(\w+)/) || [])[1] : undefined;
       }
 
-      function heal(name, again) {
-        const args = pending[name];
-        if (!args || !window.jQuery) return;
-        delete pending[name];
-        trace("heal", name);
+      // Имя ссылки, если запрос проигнорирован и его надо повторить; попутно
+      // помечает ссылку мёртвой, когда ответ не принёс ей нового токена.
+      function check(pack) {
+        const name = linkName(pack);
+        if (!name) return;
+        const paths = pack.paths;
+        if (!paths) return name;
+        if (!paths[name] && !(paths.location || {})[name] && !dead[name]) {
+          dead[name] = true;
+          trace("dead", name);
+          login();
+        }
+      }
+
+      function login(cb, again) {
+        if (waiting) {
+          if (cb) waiting.push(cb);
+          return;
+        }
+        waiting = cb ? [cb] : [];
+        trace("login");
+        const done = () => {
+          const cbs = waiting;
+          waiting = null;
+          cbs.forEach((fn) => fn());
+        };
         window.jQuery.ajax({
           type: "POST",
           url: "/?login",
           cache: false,
           data: { pass_auth: window.MD5.Hash(window.APK + window.PRK) },
-          // Параллельный запрос (rs-пинг) даёт 423 — одна повторная попытка.
           error(xhr) {
-            trace("heal-error", xhr && xhr.status);
-            if (again) return;
-            setTimeout(() => {
-              pending[name] = args;
-              heal(name, true);
-            }, 1500);
+            trace("login-error", xhr && xhr.status);
+            if (again) return done();
+            // Параллельный запрос (rs-пинг) даёт 423 — одна повторная попытка.
+            const cbs = waiting;
+            waiting = null;
+            setTimeout(() => login(() => cbs.forEach((fn) => fn()), true), 1500);
           },
           success(text) {
-            let fresh;
+            let fresh = null;
             try {
               fresh = JSON.parse(text);
             } catch {
-              return;
+              trace("login-error", "parse");
             }
-            if (!fresh.paths) return;
-            Object.assign(window.C.paths, fresh.paths);
-            trace("retry", name, tok(window.C.paths[name]));
-            post.apply(window.C, args);
+            if (fresh && fresh.paths) {
+              Object.assign(window.C.paths, fresh.paths);
+              Object.keys(dead).forEach((k) => delete dead[k]);
+              trace("fresh");
+            }
+            done();
           }
         });
+      }
+
+      function send(name, args) {
+        loading(true);
+        login(() => {
+          loading(false);
+          trace("retry", name, tok(window.C.paths[name]));
+          post.apply(window.C, args);
+        });
+      }
+
+      function retry(name) {
+        const args = pending[name];
+        delete pending[name];
+        trace("heal", name);
+        send(name, args);
       }
 
       C.post = function alxPost(pname, data, isLocation, dontrun, cb) {
@@ -657,16 +699,25 @@
           args[4] = function (raw) {
             let pack = null;
             try {
-              pack = JSON.parse(raw);
+              pack = typeof raw === "string" ? JSON.parse(raw) : raw;
             } catch {
               // При TR коллбэк зовут без ответа.
             }
-            const result = cb.apply(this, arguments);
-            heal(staleName(pack));
-            return result;
+            const stale = pack && check(pack);
+            if (stale && pending[stale]) {
+              tracePack(pack, "game");
+              retry(stale);
+              return;
+            }
+            return cb.apply(this, arguments);
           };
         }
         pending[pname] = args;
+        if (dead[pname]) {
+          trace("wait", pname);
+          send(pname, args);
+          return this;
+        }
         return post.apply(this, args);
       };
       if (typeof window.jQuery === "function") {
@@ -677,19 +728,27 @@
       }
 
       const run = C.run;
-      C.run = function alxRun() {
+      C.run = function alxRun(raw) {
         ctrlParams = null;
-        const result = run.apply(this, arguments);
+        let pack = null;
         if (!rerun) {
-          tracePack(window.C.lastpack, "game");
-          const stale = staleName(window.C.lastpack);
-          if (stale) {
-            // Экран от проигнорированного запроса догружать незачем: свои
-            // страницы столкнутся с /?login (423), а повтор всё равно перерисует.
-            heal(stale);
-            return result;
+          try {
+            pack = typeof raw === "string" ? JSON.parse(raw) : raw;
+          } catch {
+            // Битый ответ игра отругает сама.
           }
+          tracePack(pack, "game");
         }
+        const stale = pack && check(pack);
+        // Экран от проигнорированного запроса не рисуем — он уносит на чужую вкладку.
+        if (stale && pending[stale]) {
+          retry(stale);
+          return this;
+        }
+        const result = run.apply(this, arguments);
+        // Повторить уже нечем (логин не удался): экран нарисован как есть,
+        // но догружать его страницы незачем.
+        if (stale) return result;
         // Сцена рисуется коллбэком, параметры UI.pages появляются только там.
         setTimeout(() => {
           try {
