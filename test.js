@@ -176,12 +176,23 @@ vm.runInNewContext(`
   timers.shift()();
   const precise = steps;
   C.stepHexTimerAdventure({ diff: 0 });
-  result = { early, precise, steps };
+  C.stepHexTimerAdventure({ diff: 0 });
+  C.stepHexTimerAdventure({ diff: 0 });
+  const waited = steps;
+  C.stepHexTimerAdventure({ diff: 0 });
+  C.stepHexTimerAdventure({ diff: 0 });
+  const timedOut = steps;
+  // Ответ пришёл: next_turn_ms сменился, следующий тик снова родной.
+  C.PR.next_turn_ms = 1400;
+  C.stepHexTimerAdventure({ diff: 0 });
+  result = { early, precise, waited, timedOut, steps };
 `, route);
 assert.deepEqual(route.result.early, { steps: 0, startTimeDiff: 0, delay: 1 },
   "ранний нулевой тик ждёт только остаток до точного серверного времени");
 assert.equal(route.result.precise, 1, "точный таймер сразу делает шаг");
-assert.equal(route.result.steps, 1, "следующий секундный тик не дублирует запрос");
+assert.equal(route.result.waited, 1, "пока ответа на шаг нет, секундные тики не стирают маршрут");
+assert.equal(route.result.timedOut, 2, "без ответа пять секунд — тик снова родной, маршрут может погаснуть");
+assert.equal(route.result.steps, 3, "после ответа родной тик работает как обычно");
 
 // Автоход использует точный date_next_step, не дожидаясь секундного C.clock.
 const walk = game({ settings: {

@@ -31,6 +31,20 @@
     return localStorage.getItem(SETTING + id) !== "off";
   }
 
+  // Отладочная трасса (дев-сборка): последние 200 событий правок в
+  // localStorage["fix-my-mist:trace"] — токены ссылок, шаги маршрута.
+  const TRACE = SETTING + "trace";
+  function trace() {
+    let log;
+    try {
+      log = JSON.parse(localStorage.getItem(TRACE)) || [];
+    } catch {
+      log = [];
+    }
+    log.push([new Date().toISOString().slice(11, 19)].concat(Array.prototype.slice.call(arguments)));
+    localStorage.setItem(TRACE, JSON.stringify(log.slice(-200)));
+  }
+
   // Бой не зависает.
   //
   // Анимацию хода игра ведёт через TweenHexEngine.CSSAnimate.Animation:
@@ -91,34 +105,60 @@
       const C = window.C;
       const step = C?.stepHexTimerAdventure;
       if (typeof step !== "function" || step.__fmmRouteTimingPatched) return Boolean(step);
+      // Родной тик при diff==0 стирает маршрут, если персонаж не сдвинулся с
+      // прошлого шага — в том числе когда ответ на шаг просто ещё не пришёл.
+      // Пока ждём ответ (next_turn_ms не сменился), тики глотаем, но не дольше
+      // WAIT_TICKS секунд: если ответ потерян, маршрут должен погаснуть.
+      const WAIT_TICKS = 5;
       let waitingFor = 0;
       let sentFor = 0;
+      let swallowed = 0;
+      const state = () => {
+        const PR = C.PR || {};
+        const self = PR.map && PR.map.self;
+        const at = PR.map && PR.map.obj && PR.map.obj[self];
+        const way = PR.adventure_way;
+        const last = PR.adventure && PR.adventure.coord;
+        return [way ? way.length : "-", at ? at.join(",") : "?", last ? last.join(",") : "?", PR.data && PR.data.reset_way ? "reset" : ""];
+      };
       function fmmStepHexTimerAdventure(timer) {
         const next = Number(C.PR?.next_turn_ms);
         if (sentFor && sentFor !== next) sentFor = 0;
         if (timer?.diff === 0 && sentFor && sentFor === next) {
-          sentFor = 0;
           C.PR.start_time_diff = 0;
-          return;
+          if (++swallowed < WAIT_TICKS) {
+            trace("route", "wait", swallowed, ...state());
+            return;
+          }
+          sentFor = 0;
+          trace("route", "timeout", ...state());
+          return step.apply(this, arguments);
         }
         if (timer?.diff === 0 && next > +C.sdate) {
           C.PR.start_time_diff = 0;
           if (waitingFor !== next) {
             waitingFor = next;
+            trace("route", "defer", next - +C.sdate, ...state());
             const process = C.PR;
             const context = this;
             const args = arguments;
             setTimeout(() => {
               if (waitingFor !== next) return;
               waitingFor = 0;
-              if (C.PR !== process || Number(process.next_turn_ms) !== next) return;
+              if (C.PR !== process || Number(process.next_turn_ms) !== next) {
+                trace("route", "skip", ...state());
+                return;
+              }
               sentFor = next;
+              swallowed = 0;
+              trace("route", "step", ...state());
               step.apply(context, args);
             }, next - +C.sdate);
           }
           return;
         }
         waitingFor = 0;
+        if (timer?.diff === 0) trace("route", "native", ...state());
         return step.apply(this, arguments);
       }
       fmmStepHexTimerAdventure.__fmmRouteTimingPatched = true;
@@ -389,22 +429,9 @@
     // Трасса одноразовых токенов ссылок (__lnkprtn). Сервер выдаёт новый токен в
     // каждом ответе, а на устаревший отвечает без paths и молча не выполняет
     // действие — так «не применяется ожерелье» до перезагрузки. Кто израсходовал
-    // токен, по симптому не видно, поэтому пишем в localStorage последние
-    // отправки (игра или наш множитель), ответы (свежий токен или STALE) и
-    // ошибки запросов. Смотреть: localStorage["fix-my-mist:trace"].
-    const TRACE = "fix-my-mist:trace";
+    // токен, по симптому не видно, поэтому пишем последние отправки (игра или
+    // наш множитель), ответы (свежий токен или STALE) и ошибки запросов.
     const tok = (s) => (String(s || "").match(/__lnkprtn=(\w{6})/) || [])[1];
-
-    function trace() {
-      let log;
-      try {
-        log = JSON.parse(localStorage.getItem(TRACE)) || [];
-      } catch {
-        log = [];
-      }
-      log.push([new Date().toISOString().slice(11, 19)].concat(Array.prototype.slice.call(arguments)));
-      localStorage.setItem(TRACE, JSON.stringify(log.slice(-200)));
-    }
 
     function tracePack(pack, from) {
       const qs = pack && pack.process && pack.process.qs;

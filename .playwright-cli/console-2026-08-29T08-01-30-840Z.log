@@ -172,3 +172,67 @@
 [ 1341507ms] [TIMEEND] rebuild: 1.823974609375 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
 [ 1344487ms] [TIMEEND] UI.DOM: 4.6201171875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
 [ 1345858ms] [LOG] гекс: [24, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 1795818ms] [TIMEEND] UI.DOM: 5.7451171875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 1813032ms] [LOG] гекс: [21, 41] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 2144152ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ 2145299ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ 2254629ms] [TIMEEND] UI.DOM: 6.035888671875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 2257912ms] [LOG] гекс: [48, 38] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 2259509ms] [LOG] гекс: [50, 19] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 2260946ms] [LOG] гекс: [44, 34] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 2262786ms] [LOG] гекс: [29, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3628195ms] [TIMEEND] UI.DOM: 6.320068359375 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3632143ms] [LOG] гекс: [16, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3632325ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3632332ms] [TIMEEND] rebuild: 7.054931640625 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3633561ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3634292ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3634481ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3634484ms] [TIMEEND] rebuild: 2.324951171875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3635974ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3636312ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3636495ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3636497ms] [TIMEEND] rebuild: 1.90185546875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3638523ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3638596ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3638598ms] [TIMEEND] rebuild: 1.950927734375 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3638712ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3639150ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3640431ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3640610ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3640612ms] [TIMEEND] rebuild: 1.870849609375 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3642689ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3642692ms] [TIMEEND] rebuild: 2.0390625 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3644146ms] [LOG] гекс: [40, 22] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3645153ms] [LOG] гекс: [23, 35] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3645343ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3645346ms] [TIMEEND] rebuild: 2.81494140625 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3646415ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3646805ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3647640ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3647811ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3647813ms] [TIMEEND] rebuild: 2.19091796875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3649916ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3649919ms] [TIMEEND] rebuild: 3.7958984375 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3651998ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3652000ms] [TIMEEND] rebuild: 2.009033203125 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3654083ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3654085ms] [TIMEEND] rebuild: 1.699951171875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3658083ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3658085ms] [TIMEEND] rebuild: 2.032958984375 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3660189ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3660192ms] [TIMEEND] rebuild: 2.322021484375 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3661751ms] [LOG] гекс: [7, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3661893ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3661896ms] [TIMEEND] rebuild: 2.344970703125 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3665713ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[ 3665877ms] [TIMEEND] UI.DOM: 8.3701171875 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3696444ms] [TIMEEND] UI.DOM: 8.2119140625 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3697149ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3697352ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3697354ms] [TIMEEND] rebuild: 1.93994140625 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3699422ms] [LOG] rebuild @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3699424ms] [TIMEEND] rebuild: 1.762939453125 ms @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3699428ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 3699784ms] [LOG] гекс: [5, 40] @ https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:6
+[ 4592568ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
