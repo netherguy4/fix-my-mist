@@ -410,11 +410,30 @@
     function tracePack(pack, from) {
       const qs = pack && pack.process && pack.process.qs;
       const sent = tok(qs);
-      // Ходы боя идут раз в секунду и вымывают из буфера всё остальное.
-      if (!sent || /__path=battle&/.test(qs)) return;
-      const paths = pack.paths || {};
-      const fresh = Object.keys(paths).map((k) => k + ":" + tok(paths[k])).join(",");
-      trace(from + "<-", sent, fresh || "STALE");
+      const paths = pack && pack.paths && Object.keys(pack.paths).length ? pack.paths : null;
+      // Ходы боя идут раз в секунду и вымывают из буфера всё остальное; пуши
+      // (rs) интересны только когда несут ссылки.
+      if (/__path=battle&/.test(qs) || (!sent && !paths)) return;
+      const fresh = Object.keys(paths || {}).map((k) => k + ":" + tok(paths[k])).join(",");
+      trace(from + "<-", sent || String(qs).slice(0, 12), fresh || "STALE");
+    }
+
+    // Токен одноразовый: отправили — сгорел. Игра же берёт paths из любого пакета,
+    // в том числе из пуша о старте боя со снимком ссылок до наших догрузок, и
+    // так возвращает себе уже потраченный токен. Свежий держим сами.
+    const spent = {};
+    const latest = {};
+    function keepFresh(pack, from) {
+      const paths = pack && pack.paths;
+      if (!paths) return;
+      Object.keys(paths).forEach((name) => {
+        const t = tok(paths[name]);
+        if (!t) return;
+        if (spent[t] && latest[name] && tok(latest[name]) !== t) {
+          window.C.paths[name] = latest[name];
+          trace("revert", from, name, t, tok(latest[name]));
+        } else latest[name] = paths[name];
+      });
     }
 
     // Сервер отдаёт страницу за ~250 мс и отвечает 423 на параллельные запросы,
@@ -509,6 +528,7 @@
           tracePack(pack, "pages");
           // Сервер выдаёт новый путь на каждый ответ — держим свежий.
           if (pack.paths) Object.assign(window.C.paths, pack.paths);
+          keepFresh(pack, "pages");
           const part = pack.process && pack.process.data;
           if (!part) {
             stop();
@@ -662,6 +682,7 @@
             }
             if (fresh && fresh.paths) {
               Object.assign(window.C.paths, fresh.paths);
+              Object.assign(latest, fresh.paths);
               Object.keys(dead).forEach((k) => delete dead[k]);
               trace("fresh");
             }
@@ -674,7 +695,9 @@
         loading(true);
         login(() => {
           loading(false);
-          trace("retry", name, tok(window.C.paths[name]));
+          const t = tok(window.C.paths[name]);
+          spent[t] = true;
+          trace("retry", name, t);
           post.apply(window.C, args);
         });
       }
@@ -692,6 +715,7 @@
         const t = tok(path);
         // При TR игра запрос не шлёт — в трассе он только запутает.
         if (!t || window.TR) return post.apply(this, arguments);
+        spent[t] = true;
         if (pname !== "battle") trace((ownPost ? "pages" : "game") + "->", pname, t, JSON.stringify(data || {}).slice(0, 80));
         if (ownPost) return post.apply(this, arguments);
         const args = Array.prototype.slice.call(arguments);
@@ -731,21 +755,20 @@
       C.run = function alxRun(raw) {
         ctrlParams = null;
         let pack = null;
-        if (!rerun) {
-          try {
-            pack = typeof raw === "string" ? JSON.parse(raw) : raw;
-          } catch {
-            // Битый ответ игра отругает сама.
-          }
-          tracePack(pack, "game");
+        try {
+          pack = typeof raw === "string" ? JSON.parse(raw) : raw;
+        } catch {
+          // Битый ответ игра отругает сама.
         }
-        const stale = pack && check(pack);
+        if (!rerun) tracePack(pack, "game");
+        const stale = !rerun && pack && check(pack);
         // Экран от проигнорированного запроса не рисуем — он уносит на чужую вкладку.
         if (stale && pending[stale]) {
           retry(stale);
           return this;
         }
         const result = run.apply(this, arguments);
+        keepFresh(pack, linkName(pack) || String(pack && pack.process && pack.process.qs).slice(0, 12));
         // Повторить уже нечем (логин не удался): экран нарисован как есть,
         // но догружать его страницы незачем.
         if (stale) return result;

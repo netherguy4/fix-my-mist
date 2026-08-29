@@ -70,6 +70,7 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
     },
     run(raw) {
       sandbox.C.lastpack = JSON.parse(raw);
+      if (sandbox.C.lastpack.paths) Object.assign(sandbox.C.paths, sandbox.C.lastpack.paths);
       sandbox.C.PR.data = sandbox.C.lastpack.process.data;
     }
   };
@@ -356,12 +357,15 @@ healed.jQuery.ajax = (o) => {
   const ok = () => o.success(JSON.stringify({ paths: { inventory_stored: FRESH } }));
   healed.held ? (healed.held = ok) : ok();
 };
+let issued = 0;
 healed.C.post = function (pname, data, isLocation, dontrun, cb) {
   const qs = healed.C.paths[pname];
+  if (!qs) return cb(JSON.stringify({ paths: {}, process: { data: healed.serverPage(1) } }));
   healed.posted.push(tok(qs));
+  const next = qs.replace(/__lnkprtn=\w{6}/, "__lnkprtn=n" + String(++issued).padStart(5, "0"));
   const pack = tok(qs) === "6bdcb7"
     ? { process: { qs, data: healed.serverPage(1) } }
-    : { paths: { inventory_stored: qs }, process: { qs, data: healed.serverPage(1) } };
+    : { paths: { inventory_stored: next }, process: { qs, data: healed.serverPage(1) } };
   return dontrun ? cb(JSON.stringify(pack)) : healed.C.run(JSON.stringify(pack));
 };
 vm.runInNewContext(script + `
@@ -372,7 +376,7 @@ vm.runInNewContext(script + `
   ${FLUSH}
   C.paths.inventory_stored = "ctrl=Char&__idlnk=inventory_stored&__lnkprtn=6bdcb72f55&h=1";
   C.post("inventory_stored", { page: 3 });
-  const reactive = { got, posted: posted.filter(Boolean), token: C.paths.inventory_stored, trace: rows() };
+  const reactive = { got, posted: posted.filter(Boolean), lastQs: C.lastpack.process.qs, trace: rows() };
   localStorage.setItem("fix-my-mist:trace", "[]");
   posted.length = 0;
   // Предмет запустил бой: ответ с paths, но без нового токена рюкзака.
@@ -381,18 +385,26 @@ vm.runInNewContext(script + `
   C.post("inventory_stored", { page: 2 });
   const beforeLogin = posted.filter(Boolean);
   held();
-  result = { reactive, beforeLogin, posted: posted.filter(Boolean), trace: rows() };
+  const proactive = { beforeLogin, posted: posted.filter(Boolean), trace: rows() };
+  localStorage.setItem("fix-my-mist:trace", "[]");
+  // Пуш игры (rs) с уже потраченным токеном не должен затирать свежий.
+  const kept = C.paths.inventory_stored;
+  C.run(JSON.stringify({ paths: { inventory_stored: "${FRESH}", battle: "b&__lnkprtn=222222" }, process: { qs: "rs&__path=rs", data: serverPage(1) } }));
+  result = { reactive, proactive, revert: { kept: C.paths.inventory_stored === kept, token: kept, battle: C.paths.battle, trace: rows() } };
 `, healed);
 assert.deepEqual(healed.result.reactive.got, ["ok"], "коллбэк получает только настоящий ответ после повтора");
 assert.deepEqual(healed.result.reactive.posted, ["6bdcb7", "a62bf8", "6bdcb7", "a62bf8"], "повтор уходит с новым токеном, по одному на запрос");
-assert.equal(healed.C.lastpack.process.qs, healed.result.reactive.token, "устаревший ответ не рисуется, экран — от настоящего");
+assert.equal(tok(healed.result.reactive.lastQs), "a62bf8", "устаревший ответ не рисуется, экран — от настоящего");
 assert.deepEqual(healed.result.reactive.trace, [
   ["heal", "inventory_stored"], ["login"], ["login-error", 423], ["login"], ["fresh"], ["retry", "inventory_stored", "a62bf8"],
   ["heal", "inventory_stored"], ["login"], ["fresh"], ["retry", "inventory_stored", "a62bf8"]
 ], "после 423 логин повторяется; починка видна в трассе");
-assert.deepEqual(healed.result.beforeLogin, [], "запрос по мёртвой ссылке ждёт логин");
-assert.deepEqual(healed.result.posted, ["a62bf8"], "и уходит уже с новым токеном");
-assert.deepEqual(healed.result.trace, [["dead", "inventory_stored"], ["login"], ["wait", "inventory_stored"], ["fresh"], ["retry", "inventory_stored", "a62bf8"]],
+assert.deepEqual(healed.result.proactive.beforeLogin, [], "запрос по мёртвой ссылке ждёт логин");
+assert.deepEqual(healed.result.proactive.posted, ["a62bf8"], "и уходит уже с новым токеном");
+assert.deepEqual(healed.result.proactive.trace, [["dead", "inventory_stored"], ["login"], ["wait", "inventory_stored"], ["fresh"], ["retry", "inventory_stored", "a62bf8"]],
   "мёртвая ссылка обновляется заранее");
+assert.ok(healed.result.revert.kept, "потраченный токен из пуша не затирает свежий");
+assert.equal(tok(healed.result.revert.battle), "222222", "остальные ссылки из пуша берутся как есть");
+assert.deepEqual(healed.result.revert.trace, [["revert", "rs&__path=rs", "inventory_stored", "a62bf8", tok(healed.result.revert.token)]], "откат виден в трассе");
 
 console.log("fix-my-mist ok");
