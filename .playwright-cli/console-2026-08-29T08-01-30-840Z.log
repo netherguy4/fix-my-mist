@@ -11,3 +11,64 @@
 [ -179409ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
 [ -178768ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Char&a=invStored&__path=inventory_stored&__idlnk=inventory_stored&__lnkprtn=e503e059c0e516382f30ea92c7de10bc&h=31a6791df2d66d555629c3ff2f16ca9d&h1=288ff8ce343010f52ff590a44c507744:0
 [-1457513ms] [LOG] *** SockJS CDN is being retired on Dec 1st *** Please transition to a public CDN. See https://github.com/sockjs/sockjs-client/issues/198 for more information. @ https://i.mist-game.ru/interface_v4/js/compile/chat.min.v1.js:0
+[  495442ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://i.mist-game.ru/interface_v4/js/compile/chat.min.v1.js:0
+[  495442ms] [LOG] *** SockJS CDN is being retired on Dec 1st *** Please transition to a public CDN. See https://github.com/sockjs/sockjs-client/issues/198 for more information. @ https://i.mist-game.ru/interface_v4/js/compile/chat.min.v1.js:0
+[  501901ms] [ERROR] Permissions policy violation: unload is not allowed in this document. @ https://ajax.googleapis.com/ajax/libs/jquery/1.5.2//jquery.min.js:15
+[  515358ms] [WARNING] Form submission canceled because the form is not connected @ https://world.mist-game.ru/:0
+[  646721ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  647333ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  647850ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  647987ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  648421ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  648799ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  649927ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  650138ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  650421ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=1338ca257080f4e013e3f54bb8b69a73&h=1307931c29195db244149bf38ff8dbc0&h1=0fdfac6fde26bd32e49677ef9ad89899:0
+[  650661ms] [LOG] TypeError: Cannot read properties of undefined (reading 'npc')
+    at <computed>.makeHTML (https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:1:107030)
+    at <computed>.makeHTML (https://i.mist-game.ru/interface_v4//js/compile/main.min.v2.js:1:177268)
+    at https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:765
+    at d.map (https://ajax.googleapis.com/ajax/libs/jquery/1.5.2//jquery.min.js:16:12172)
+    at UI.HTML (https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:717)
+    at UI.DOM (https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:844)
+    at new dialogueScene (https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:1:109066)
+    at scenesClass.setScene (https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:1:91700)
+    at scenesClass.set (https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:1:92490)
+    at controllerClass.run (https://i.mist-game.ru/interface_v4//js/compile/main.min.v2.js:1:37085) @ https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:0
+[  650720ms] [LOG] TypeError: Cannot read properties of undefined (reading 'npc')
+    at <computed>.makeHTML (https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:1:107030)
+    at <computed>.makeHTML (https://i.mist-game.ru/interface_v4//js/compile/main.min.v2.js:1:177268)
+    at https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:765
+    at d.map (https://ajax.googleapis.com/ajax/libs/jquery/1.5.2//jquery.min.js:16:12172)
+    at UI.HTML (https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:717)
+    at UI.DOM (https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:844)
+    at new dialogueScene (https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:1:109066)
+    at scenesClass.setScene (https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:1:91700)
+    at scenesClass.set (https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:1:92490)
+    at controllerClass.run (https://i.mist-game.ru/interface_v4//js/compile/main.min.v2.js:1:37085) @ https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:0
+[  652958ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  653755ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  653949ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  654462ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  654661ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  655101ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  655575ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  656809ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=559e43c29c732056dde7de2d2cd8e648&h=6c0f53eb1dc9fcfc94da19d515362755&h1=3af749533b18004cffefe88a833c8b69:0
+[  659966ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=438ec66f5984ec653603495a824c985c&h=542781bdb1c6c8e058cbf05a157156e6&h1=0f26f97a7e1ed2b78ffe6e30299c59d9:0
+[  660890ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=438ec66f5984ec653603495a824c985c&h=542781bdb1c6c8e058cbf05a157156e6&h1=0f26f97a7e1ed2b78ffe6e30299c59d9:0
+[  661539ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=438ec66f5984ec653603495a824c985c&h=542781bdb1c6c8e058cbf05a157156e6&h1=0f26f97a7e1ed2b78ffe6e30299c59d9:0
+[  661776ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=438ec66f5984ec653603495a824c985c&h=542781bdb1c6c8e058cbf05a157156e6&h1=0f26f97a7e1ed2b78ffe6e30299c59d9:0
+[  663988ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=438ec66f5984ec653603495a824c985c&h=542781bdb1c6c8e058cbf05a157156e6&h1=0f26f97a7e1ed2b78ffe6e30299c59d9:0
+[  664557ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=continueDialog&__path=location%2Fcontinue_dialogue&__idlnk=location_continue_dialogue&__lnkprtn=438ec66f5984ec653603495a824c985c&h=542781bdb1c6c8e058cbf05a157156e6&h1=0f26f97a7e1ed2b78ffe6e30299c59d9:0
+[  664802ms] [LOG] TypeError: Cannot read properties of undefined (reading 'npc')
+    at <computed>.makeHTML (https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:1:107030)
+    at <computed>.makeHTML (https://i.mist-game.ru/interface_v4//js/compile/main.min.v2.js:1:177268)
+    at https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:765
+    at d.map (https://ajax.googleapis.com/ajax/libs/jquery/1.5.2//jquery.min.js:16:12172)
+    at UI.HTML (https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:717)
+    at UI.DOM (https://i.mist-game.ru/interface_v4/js/compile/game.ui.min.v1.js:1:844)
+    at new dialogueScene (https://i.mist-game.ru/interface_v4//js/compile/compile.min.v3.js:1:109066)
+    at scenesClass.setScene (https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:1:91700)
+    at scenesClass.set (https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:1:92490)
+    at controllerClass.run (https://i.mist-game.ru/interface_v4//js/compile/main.min.v2.js:1:37085) @ https://i.mist-game.ru/interface_v4//js/compile/main2.min.v2.js:0
+[  668386ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://world.mist-game.ru/?ctrl=Dialog&a=startDialog&__path=location%2Fstart_dialogue&__idlnk=location_start_dialogue&__lnkprtn=92b7a446de37a1fdbbbd954842f65e5e&h=c1d95bf38023ed9741d138dcfb8b7043&h1=54b89964dcaf78ea47ebe50ec1045902:0

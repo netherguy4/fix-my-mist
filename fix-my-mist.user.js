@@ -620,13 +620,9 @@
 
       const post = C.post;
 
-      // Одноразовые токены ссылок. Ответ на ссылку X несёт её новый токен; если
-      // в paths его нет — X мертва (предмет запустил бой, а ответ-бой несёт только
-      // ссылки боя), и следующий запрос по ней сервер молча проигнорирует: ответ
-      // без paths вовсе. Свежий комплект отдаёт /?login (старые токены при этом
-      // живут), поэтому мёртвую ссылку обновляем в фоне заранее, а
+      // Запрос с потраченным токеном сервер молча игнорирует: ответ без paths
+      // вовсе. Свежий комплект отдаёт /?login (старые токены при этом живут);
       // проигнорированный запрос не рисуем — чиним и повторяем.
-      const dead = {};
       let waiting = null;
 
       function linkName(pack) {
@@ -634,18 +630,10 @@
         return tok(qs) ? (qs.match(/__idlnk=(\w+)/) || [])[1] : undefined;
       }
 
-      // Имя ссылки, если запрос проигнорирован и его надо повторить; попутно
-      // помечает ссылку мёртвой, когда ответ не принёс ей нового токена.
+      // Имя ссылки, если запрос проигнорирован и его надо повторить.
       function check(pack) {
         const name = linkName(pack);
-        if (!name) return;
-        const paths = pack.paths;
-        if (!paths) return name;
-        if (!paths[name] && !(paths.location || {})[name] && !dead[name]) {
-          dead[name] = true;
-          trace("dead", name);
-          login();
-        }
+        return name && !pack.paths ? name : undefined;
       }
 
       function login(cb, again) {
@@ -683,7 +671,6 @@
             if (fresh && fresh.paths) {
               Object.assign(window.C.paths, fresh.paths);
               Object.assign(latest, fresh.paths);
-              Object.keys(dead).forEach((k) => delete dead[k]);
               trace("fresh");
             }
             done();
@@ -737,11 +724,6 @@
           };
         }
         pending[pname] = args;
-        if (dead[pname]) {
-          trace("wait", pname);
-          send(pname, args);
-          return this;
-        }
         return post.apply(this, args);
       };
       if (typeof window.jQuery === "function") {
