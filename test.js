@@ -63,15 +63,20 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
   sandbox.C = {
     PR: { intf: intf || "stored", data: rendered ? serverPage(1) : null },
     paths: {},
+    pack: { paths: {} },
     post(pname, data, isLocation, dontrun, cb) {
       posted.push(data.page);
       assert.equal(loader.style.display, "block", "лоадер висит, пока едут страницы блока");
       cb(JSON.stringify({ paths: {}, process: { data: serverPage(data.page) } }));
     },
     run(raw) {
-      sandbox.C.lastpack = JSON.parse(raw);
-      if (sandbox.C.lastpack.paths) Object.assign(sandbox.C.paths, sandbox.C.lastpack.paths);
-      sandbox.C.PR.data = sandbox.C.lastpack.process.data;
+      const pack = JSON.parse(raw);
+      sandbox.C.lastpack = pack;
+      // Как в игре: pack на каждый пакет клонируется, а paths переназначается
+      // только когда пакет их принёс.
+      sandbox.C.pack = { paths: Object.assign({}, sandbox.C.pack.paths, pack.paths) };
+      if (pack.paths) sandbox.C.paths = sandbox.C.pack.paths;
+      sandbox.C.PR.data = pack.process.data;
     }
   };
   return sandbox;
@@ -337,58 +342,37 @@ assert.deepEqual(traced.result, [
   ["game<-", "6bdcb7", "inventory_stored:a62bf8"]
 ], "трасса пишет отправку, устаревший ответ и свежий токен");
 
-// Проигнорированный запрос (ответ без paths на токенную ссылку) не рисуется:
-// скрипт берёт свежие токены из /?login и повторяет его — и с коллбэком
-// (dontrun), и через C.run.
+// Токены: ссылки у игры в C.paths и C.pack.paths; после пакета без paths они
+// расходятся, и свежий токен от догрузки должен попасть в оба (в песочнице экран зовётся refresh) — иначе следующий
+// пакет с paths (пуш о начатом предметом бое) вернёт игре потраченный.
 const tok = (s) => (String(s || "").match(/__lnkprtn=(\w{6})/) || [])[1];
-const FRESH = "ctrl=Char&__idlnk=inventory_stored&__lnkprtn=a62bf8dcfc";
-const healed = game({ rendered: true });
-healed.APK = "apk";
-healed.PRK = "prk";
-healed.MD5 = { Hash: (s) => "md5:" + s };
-healed.logins = [];
-healed.jQuery = () => ({ ajaxError() {} });
-healed.jQuery.ajax = (o) => {
-  healed.logins.push(o.data.pass_auth);
-  // Первый логин столкнулся с другим запросом.
-  if (healed.logins.length === 1) return o.error({ status: 423 });
-  o.success(JSON.stringify({ paths: { inventory_stored: FRESH } }));
-};
+const two = game();
 let issued = 0;
-healed.C.post = function (pname, data, isLocation, dontrun, cb) {
-  const qs = healed.C.paths[pname];
-  if (!qs) return cb(JSON.stringify({ paths: {}, process: { data: healed.serverPage(1) } }));
-  healed.posted.push(tok(qs));
-  const next = qs.replace(/__lnkprtn=\w{6}/, "__lnkprtn=n" + String(++issued).padStart(5, "0"));
-  const pack = tok(qs) === "6bdcb7"
-    ? { process: { qs, data: healed.serverPage(1) } }
-    : { paths: { inventory_stored: next }, process: { qs, data: healed.serverPage(1) } };
-  return dontrun ? cb(JSON.stringify(pack)) : healed.C.run(JSON.stringify(pack));
+two.C.post = function (pname, data, isLocation, dontrun, cb) {
+  two.posted.push(tok(two.C.paths[pname]));
+  const next = "ctrl=Char&__idlnk=refresh&__lnkprtn=" + String(++issued).padStart(6, "0") + "ffff";
+  cb(JSON.stringify({ paths: { refresh: next }, process: { data: two.serverPage(data.page) } }));
 };
-vm.runInNewContext(script + `
-  const got = [];
-  const rows = () => JSON.parse(localStorage.getItem("fix-my-mist:trace")).map((row) => row.slice(1)).filter((r) => !/->|<-/.test(r[0]));
-  C.paths.inventory_stored = "ctrl=Char&__idlnk=inventory_stored&__lnkprtn=6bdcb72f55&h=1";
-  C.post("inventory_stored", { action: "use" }, false, true, (raw) => got.push(JSON.parse(raw).paths ? "ok" : "stale"));
+vm.runInNewContext(`
+  ${script}
+  C.run(JSON.stringify({ paths: { refresh: "ctrl=Char&__idlnk=refresh&__lnkprtn=aaaaaa00" }, process: { qs: "ctrl=Char&__idlnk=refresh&__lnkprtn=00000000", data: serverPage(6) } }));
+  // Пришёл пакет без paths: C.pack — новый клон, C.paths — старый объект.
+  C.pack = { paths: Object.assign({}, C.paths) };
   ${FLUSH}
-  C.paths.inventory_stored = "ctrl=Char&__idlnk=inventory_stored&__lnkprtn=6bdcb72f55&h=1";
-  C.post("inventory_stored", { page: 3 });
-  const reactive = { got, posted: posted.filter(Boolean), lastQs: C.lastpack.process.qs, trace: rows() };
-  localStorage.setItem("fix-my-mist:trace", "[]");
-  // Пуш игры (rs) с уже потраченным токеном не должен затирать свежий.
-  const kept = C.paths.inventory_stored;
-  C.run(JSON.stringify({ paths: { inventory_stored: "${FRESH}", battle: "b&__lnkprtn=222222" }, process: { qs: "rs&__path=rs", data: serverPage(1) } }));
-  result = { reactive, revert: { kept: C.paths.inventory_stored === kept, token: kept, battle: C.paths.battle, trace: rows() } };
-`, healed);
-assert.deepEqual(healed.result.reactive.got, ["ok"], "коллбэк получает только настоящий ответ после повтора");
-assert.deepEqual(healed.result.reactive.posted, ["6bdcb7", "a62bf8", "6bdcb7", "a62bf8"], "повтор уходит с новым токеном, по одному на запрос");
-assert.equal(tok(healed.result.reactive.lastQs), "a62bf8", "устаревший ответ не рисуется, экран — от настоящего");
-assert.deepEqual(healed.result.reactive.trace, [
-  ["heal", "inventory_stored"], ["login"], ["login-error", 423], ["login"], ["fresh"], ["retry", "inventory_stored", "a62bf8"],
-  ["heal", "inventory_stored"], ["login"], ["fresh"], ["retry", "inventory_stored", "a62bf8"]
-], "после 423 логин повторяется; починка видна в трассе");
-assert.ok(healed.result.revert.kept, "потраченный токен из пуша не затирает свежий");
-assert.equal(tok(healed.result.revert.battle), "222222", "остальные ссылки из пуша берутся как есть");
-assert.deepEqual(healed.result.revert.trace, [["revert", "rs&__path=rs", "inventory_stored", "a62bf8", tok(healed.result.revert.token)]], "откат виден в трассе");
+  const afterPages = { paths: C.paths.refresh, pack: C.pack.paths.refresh };
+  C.run(JSON.stringify({ paths: { battle: "b&__lnkprtn=222222" }, process: { qs: "ctrl=Location&a=refresh", data: serverPage(6) } }));
+  const afterPush = C.paths.refresh;
+  C.run(JSON.stringify({ paths: { refresh: "ctrl=Char&__idlnk=refresh&__lnkprtn=aaaaaa00" }, process: { qs: "rs&__path=rs", data: serverPage(6) } }));
+  result = {
+    posted: posted.slice(), afterPages, afterPush, afterStale: C.paths.refresh,
+    trace: JSON.parse(localStorage.getItem("fix-my-mist:trace")).map((row) => row.slice(1)).filter((r) => r[0] === "revert")
+  };
+`, two);
+assert.deepEqual(two.result.posted, ["aaaaaa", "000001", "000002", "000003"], "каждая догрузка уходит с токеном из предыдущего ответа");
+assert.equal(tok(two.result.afterPages.paths), "000004", "свежий токен в C.paths");
+assert.equal(tok(two.result.afterPages.pack), "000004", "и в C.pack.paths");
+assert.equal(tok(two.result.afterPush), "000004", "пуш без ссылки рюкзака не возвращает потраченный токен");
+assert.equal(tok(two.result.afterStale), "000004", "потраченный токен из пакета не затирает свежий");
+assert.deepEqual(two.result.trace, [["revert", "rs&__path=rs", "refresh", "aaaaaa", "000004"]], "откат виден в трассе");
 
 console.log("fix-my-mist ok");

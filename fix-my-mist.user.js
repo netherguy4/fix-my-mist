@@ -321,7 +321,6 @@
     let hooked = false;
     let rerun = false;
     let ownPost = false;
-    let pending = {};
     // Экраны вне itemsScene носят имя запроса в параметрах контрола UI.pages.
     let ctrlParams = null;
 
@@ -418,9 +417,18 @@
       trace(from + "<-", sent || String(qs).slice(0, 12), fresh || "STALE");
     }
 
-    // Токен одноразовый: отправили — сгорел. Игра же берёт paths из любого пакета,
-    // в том числе из пуша о старте боя со снимком ссылок до наших догрузок, и
-    // так возвращает себе уже потраченный токен. Свежий держим сами.
+    // Токен одноразовый: отправили — сгорел, ответ несёт следующий. Ссылки у игры
+    // лежат в двух местах: C.paths и C.pack.paths. После пакета без paths C.pack
+    // становится новым клоном, а C.paths остаётся старым объектом, и следующий
+    // пакет с paths склеивается из C.pack.paths — свежий токен надо класть в оба,
+    // иначе после боя, начатого предметом, игра возвращается к потраченному.
+    function setPaths(paths) {
+      const C = window.C;
+      Object.assign(C.paths, paths);
+      if (C.pack && C.pack.paths && C.pack.paths !== C.paths) Object.assign(C.pack.paths, paths);
+    }
+
+    // Страховка на случай, если потраченный токен всё же приехал в пакете.
     const spent = {};
     const latest = {};
     function keepFresh(pack, from) {
@@ -430,7 +438,9 @@
         const t = tok(paths[name]);
         if (!t) return;
         if (spent[t] && latest[name] && tok(latest[name]) !== t) {
-          window.C.paths[name] = latest[name];
+          const fresh = {};
+          fresh[name] = latest[name];
+          setPaths(fresh);
           trace("revert", from, name, t, tok(latest[name]));
         } else latest[name] = paths[name];
       });
@@ -527,7 +537,7 @@
           }
           tracePack(pack, "pages");
           // Сервер выдаёт новый путь на каждый ответ — держим свежий.
-          if (pack.paths) Object.assign(window.C.paths, pack.paths);
+          if (pack.paths) setPaths(pack.paths);
           keepFresh(pack, "pages");
           const part = pack.process && pack.process.data;
           if (!part) {
@@ -620,83 +630,7 @@
 
       const post = C.post;
 
-      // Запрос с потраченным токеном сервер молча игнорирует: ответ без paths
-      // вовсе. Свежий комплект отдаёт /?login (старые токены при этом живут);
-      // проигнорированный запрос не рисуем — чиним и повторяем.
-      let waiting = null;
-
-      function linkName(pack) {
-        const qs = pack && pack.process && pack.process.qs;
-        return tok(qs) ? (qs.match(/__idlnk=(\w+)/) || [])[1] : undefined;
-      }
-
-      // Имя ссылки, если запрос проигнорирован и его надо повторить.
-      function check(pack) {
-        const name = linkName(pack);
-        return name && !pack.paths ? name : undefined;
-      }
-
-      function login(cb, again) {
-        if (waiting) {
-          if (cb) waiting.push(cb);
-          return;
-        }
-        waiting = cb ? [cb] : [];
-        trace("login");
-        const done = () => {
-          const cbs = waiting;
-          waiting = null;
-          cbs.forEach((fn) => fn());
-        };
-        window.jQuery.ajax({
-          type: "POST",
-          url: "/?login",
-          cache: false,
-          data: { pass_auth: window.MD5.Hash(window.APK + window.PRK) },
-          error(xhr) {
-            trace("login-error", xhr && xhr.status);
-            if (again) return done();
-            // Параллельный запрос (rs-пинг) даёт 423 — одна повторная попытка.
-            const cbs = waiting;
-            waiting = null;
-            setTimeout(() => login(() => cbs.forEach((fn) => fn()), true), 1500);
-          },
-          success(text) {
-            let fresh = null;
-            try {
-              fresh = JSON.parse(text);
-            } catch {
-              trace("login-error", "parse");
-            }
-            if (fresh && fresh.paths) {
-              Object.assign(window.C.paths, fresh.paths);
-              Object.assign(latest, fresh.paths);
-              trace("fresh");
-            }
-            done();
-          }
-        });
-      }
-
-      function send(name, args) {
-        loading(true);
-        login(() => {
-          loading(false);
-          const t = tok(window.C.paths[name]);
-          spent[t] = true;
-          trace("retry", name, t);
-          post.apply(window.C, args);
-        });
-      }
-
-      function retry(name) {
-        const args = pending[name];
-        delete pending[name];
-        trace("heal", name);
-        send(name, args);
-      }
-
-      C.post = function alxPost(pname, data, isLocation, dontrun, cb) {
+      C.post = function alxPost(pname, data, isLocation) {
         const paths = window.C.paths || {};
         const path = isLocation ? (paths.location || {})[pname] : paths[pname] || (paths.location || {})[pname];
         const t = tok(path);
@@ -704,27 +638,7 @@
         if (!t || window.TR) return post.apply(this, arguments);
         spent[t] = true;
         if (pname !== "battle") trace((ownPost ? "pages" : "game") + "->", pname, t, JSON.stringify(data || {}).slice(0, 80));
-        if (ownPost) return post.apply(this, arguments);
-        const args = Array.prototype.slice.call(arguments);
-        if (dontrun && typeof cb === "function") {
-          args[4] = function (raw) {
-            let pack = null;
-            try {
-              pack = typeof raw === "string" ? JSON.parse(raw) : raw;
-            } catch {
-              // При TR коллбэк зовут без ответа.
-            }
-            const stale = pack && check(pack);
-            if (stale && pending[stale]) {
-              tracePack(pack, "game");
-              retry(stale);
-              return;
-            }
-            return cb.apply(this, arguments);
-          };
-        }
-        pending[pname] = args;
-        return post.apply(this, args);
+        return post.apply(this, arguments);
       };
       if (typeof window.jQuery === "function") {
         window.jQuery(document).ajaxError((_, xhr, opts) => {
@@ -743,17 +657,11 @@
           // Битый ответ игра отругает сама.
         }
         if (!rerun) tracePack(pack, "game");
-        const stale = !rerun && pack && check(pack);
-        // Экран от проигнорированного запроса не рисуем — он уносит на чужую вкладку.
-        if (stale && pending[stale]) {
-          retry(stale);
-          return this;
-        }
         const result = run.apply(this, arguments);
-        keepFresh(pack, linkName(pack) || String(pack && pack.process && pack.process.qs).slice(0, 12));
-        // Повторить уже нечем (логин не удался): экран нарисован как есть,
-        // но догружать его страницы незачем.
-        if (stale) return result;
+        keepFresh(pack, String(pack && pack.process && pack.process.qs).slice(0, 12));
+        // Проигнорированный запрос (потраченный токен, ответ без paths): экран
+        // нарисован как есть, догружать его незачем.
+        if (pack && !pack.paths && tok(pack.process && pack.process.qs)) return result;
         // Сцена рисуется коллбэком, параметры UI.pages появляются только там.
         setTimeout(() => {
           try {
