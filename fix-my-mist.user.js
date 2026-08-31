@@ -163,6 +163,25 @@
       }
       fmmStepHexTimerAdventure.__fmmRouteTimingPatched = true;
       C.stepHexTimerAdventure = fmmStepHexTimerAdventure;
+
+      // Ответ на шаг иногда приходит «пустым»: сервер отвечает и выдаёт свежий
+      // токен, но позиция и next_turn_ms остаются прежними — тики уходят в
+      // wait, и маршрут гаснет по таймауту. Пишем ответы хода: по трассе видно,
+      // чем такой ответ отличается от удачного.
+      const run = C.run;
+      C.run = function fmmRunRouteTrace(raw) {
+        try {
+          const p = (typeof raw === "string" ? JSON.parse(raw) : raw)?.process;
+          if (p && /__path=adventure&/.test(String(p.qs))) {
+            const at = p.map?.obj?.[p.map.self];
+            trace("adv<-", p.action, p.action_success, p.next_turn_ms, at ? at.slice(0, 2).join(",") : "?",
+              (p.adventure_way || []).length, p.status, p.mode, p.exec_time);
+          }
+        } catch {
+          // Трасса не должна ронять ответ игры.
+        }
+        return run.apply(this, arguments);
+      };
       return true;
     }
 

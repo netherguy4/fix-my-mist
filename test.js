@@ -185,7 +185,14 @@ vm.runInNewContext(`
   // Ответ пришёл: next_turn_ms сменился, следующий тик снова родной.
   C.PR.next_turn_ms = 1400;
   C.stepHexTimerAdventure({ diff: 0 });
-  result = { early, precise, waited, timedOut, steps };
+  C.run(JSON.stringify({ process: {
+    qs: "dung=1&__path=adventure&__idlnk=adventure&__lnkprtn=abcdef",
+    action: "move", action_success: false, next_turn_ms: 1400, exec_time: 0.12,
+    map: { self: "m1", obj: { m1: [6, 4, "m1", 2] } }, adventure_way: [1, 2, 3], status: 0, mode: "adventure"
+  } }));
+  C.run(JSON.stringify({ process: { qs: "ctrl=Battle&a=refresh", action: "show" } }));
+  result = { early, precise, waited, timedOut, steps,
+    trace: JSON.parse(localStorage.getItem("fix-my-mist:trace")).map((row) => row.slice(1)) };
 `, route);
 assert.deepEqual(route.result.early, { steps: 0, startTimeDiff: 0, delay: 1 },
   "ранний нулевой тик ждёт только остаток до точного серверного времени");
@@ -193,6 +200,9 @@ assert.equal(route.result.precise, 1, "точный таймер сразу де
 assert.equal(route.result.waited, 1, "пока ответа на шаг нет, секундные тики не стирают маршрут");
 assert.equal(route.result.timedOut, 2, "без ответа пять секунд — тик снова родной, маршрут может погаснуть");
 assert.equal(route.result.steps, 3, "после ответа родной тик работает как обычно");
+assert.deepEqual(route.result.trace.filter((r) => r[0] === "adv<-"),
+  [["adv<-", "move", false, 1400, "6,4", 3, 0, "adventure", 0.12]],
+  "ответ хода пишется в трассу, чужие пакеты — нет");
 
 // Автоход использует точный date_next_step, не дожидаясь секундного C.clock.
 const walk = game({ settings: {
