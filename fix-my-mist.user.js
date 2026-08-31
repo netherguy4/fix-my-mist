@@ -45,6 +45,26 @@
     localStorage.setItem(TRACE, JSON.stringify(log.slice(-200)));
   }
 
+  // Разбирают такие случаи через день, а трасса на 200 событий вымывается за
+  // минуты игры: в момент обрыва замораживаем её хвост отдельной записью в
+  // localStorage["fix-my-mist:incidents"] — последние десять случаев.
+  const INCIDENTS = SETTING + "incidents";
+  function freeze(why) {
+    let tail, all;
+    try {
+      tail = JSON.parse(localStorage.getItem(TRACE)) || [];
+    } catch {
+      tail = [];
+    }
+    try {
+      all = JSON.parse(localStorage.getItem(INCIDENTS)) || [];
+    } catch {
+      all = [];
+    }
+    all.push({ at: new Date().toISOString(), why, tail: tail.slice(-60) });
+    localStorage.setItem(INCIDENTS, JSON.stringify(all.slice(-10)));
+  }
+
   // Бой не зависает.
   //
   // Анимацию хода игра ведёт через TweenHexEngine.CSSAnimate.Animation:
@@ -121,6 +141,15 @@
         const last = PR.adventure && PR.adventure.coord;
         return [way ? way.length : "-", at ? at.join(",") : "?", last ? last.join(",") : "?", PR.data && PR.data.reset_way ? "reset" : ""];
       };
+      // Остаток маршрута игра стирает молча. Считаем это обрывом, когда за один
+      // тик пропало больше одного шага: последний шаг маршрут доигрывает и сам.
+      const wayLen = () => (C.PR?.adventure_way || []).length;
+      function stepAndWatch(why, context, args) {
+        const before = wayLen();
+        const result = step.apply(context, args);
+        if (before > 1 && wayLen() === 0) freeze(why);
+        return result;
+      }
       function fmmStepHexTimerAdventure(timer) {
         const next = Number(C.PR?.next_turn_ms);
         if (sentFor && sentFor !== next) sentFor = 0;
@@ -132,7 +161,7 @@
           }
           sentFor = 0;
           trace("route", "timeout", ...state());
-          return step.apply(this, arguments);
+          return stepAndWatch("timeout", this, arguments);
         }
         if (timer?.diff === 0 && next > +C.sdate) {
           C.PR.start_time_diff = 0;
@@ -152,14 +181,15 @@
               sentFor = next;
               swallowed = 0;
               trace("route", "step", ...state());
-              step.apply(context, args);
+              stepAndWatch("step", context, args);
             }, next - +C.sdate);
           }
           return;
         }
         waitingFor = 0;
-        if (timer?.diff === 0) trace("route", "native", ...state());
-        return step.apply(this, arguments);
+        if (timer?.diff !== 0) return step.apply(this, arguments);
+        trace("route", "native", ...state());
+        return stepAndWatch("native", this, arguments);
       }
       fmmStepHexTimerAdventure.__fmmRouteTimingPatched = true;
       C.stepHexTimerAdventure = fmmStepHexTimerAdventure;

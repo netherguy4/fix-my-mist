@@ -167,7 +167,8 @@ route.C.sdate = 1499;
 route.C.PR.next_turn_ms = 1500;
 route.C.PR.start_time_diff = 1;
 route.steps = 0;
-route.C.stepHexTimerAdventure = () => { route.steps++; };
+// Родной шаг гасит маршрут, если сервер не подтвердил предыдущий.
+route.C.stepHexTimerAdventure = () => { route.steps++; route.C.PR.adventure_way = []; };
 vm.runInNewContext(`
   ${script}
   C.stepHexTimerAdventure({ diff: 0 });
@@ -180,6 +181,7 @@ vm.runInNewContext(`
   C.stepHexTimerAdventure({ diff: 0 });
   const waited = steps;
   C.stepHexTimerAdventure({ diff: 0 });
+  C.PR.adventure_way = [1, 2, 3];
   C.stepHexTimerAdventure({ diff: 0 });
   const timedOut = steps;
   // Ответ пришёл: next_turn_ms сменился, следующий тик снова родной.
@@ -192,7 +194,8 @@ vm.runInNewContext(`
   } }));
   C.run(JSON.stringify({ process: { qs: "ctrl=Battle&a=refresh", action: "show" } }));
   result = { early, precise, waited, timedOut, steps,
-    trace: JSON.parse(localStorage.getItem("fix-my-mist:trace")).map((row) => row.slice(1)) };
+    trace: JSON.parse(localStorage.getItem("fix-my-mist:trace")).map((row) => row.slice(1)),
+    incidents: JSON.parse(localStorage.getItem("fix-my-mist:incidents")) };
 `, route);
 assert.deepEqual(route.result.early, { steps: 0, startTimeDiff: 0, delay: 1 },
   "ранний нулевой тик ждёт только остаток до точного серверного времени");
@@ -200,6 +203,9 @@ assert.equal(route.result.precise, 1, "точный таймер сразу де
 assert.equal(route.result.waited, 1, "пока ответа на шаг нет, секундные тики не стирают маршрут");
 assert.equal(route.result.timedOut, 2, "без ответа пять секунд — тик снова родной, маршрут может погаснуть");
 assert.equal(route.result.steps, 3, "после ответа родной тик работает как обычно");
+assert.equal(route.result.incidents.length, 1, "обрыв маршрута заморожен один раз");
+assert.equal(route.result.incidents[0].why, "timeout", "видно, на каком тике маршрут погас");
+assert.ok(route.result.incidents[0].tail.length > 1, "в записи лежит хвост трассы");
 assert.deepEqual(route.result.trace.filter((r) => r[0] === "adv<-"),
   [["adv<-", "move", false, 1400, "6,4", 3, 0, "adventure", 0.12]],
   "ответ хода пишется в трассу, чужие пакеты — нет");
