@@ -210,6 +210,38 @@ assert.deepEqual(route.result.trace.filter((r) => r[0] === "adv<-"),
   [["adv<-", "move", false, 1400, "6,4", 3, 0, "adventure", 0.12]],
   "ответ хода пишется в трассу, чужие пакеты — нет");
 
+// Ответ без движения завершает ожидание запроса, даже когда сервер оставил
+// next_turn_ms прежним. Иначе правка принимала уже полученный ответ за
+// потерянный и четыре секунды глотала штатные попытки повторить шаг.
+const rejected = game({ settings: {
+  "fix-my-mist:battle-unfreeze": "off",
+  "fix-my-mist:world-map-speed": "off",
+  "fix-my-mist:socket-reconnect": "off",
+  "fix-my-mist:battle-log-row": "off",
+  "fix-my-mist:pages": "off"
+} });
+rejected.C.sdate = 1499;
+rejected.C.PR.next_turn_ms = 1500;
+rejected.C.PR.start_time_diff = 1;
+rejected.C.PR.adventure_way = [1, 2, 3];
+rejected.steps = 0;
+rejected.C.stepHexTimerAdventure = () => { rejected.steps++; };
+vm.runInNewContext(`
+  ${script}
+  C.stepHexTimerAdventure({ diff: 0 });
+  C.sdate = 1500;
+  timers.shift()();
+  C.run(JSON.stringify({ process: {
+    qs: "dung=1&__path=adventure&__idlnk=adventure&__lnkprtn=abcdef",
+    action: "show", action_success: false, next_turn_ms: 1500,
+    adventure_way: [1, 2, 3]
+  } }));
+  C.stepHexTimerAdventure({ diff: 0 });
+  result = steps;
+`, rejected);
+assert.equal(rejected.result, 2,
+  "после полученного отказа следующий секундный тик сразу повторяет шаг");
+
 // Автоход использует точный date_next_step, не дожидаясь секундного C.clock.
 const walk = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",

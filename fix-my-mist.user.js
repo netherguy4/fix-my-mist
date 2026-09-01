@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.0
+// @version      1.4.1
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -203,6 +203,11 @@
         try {
           const p = (typeof raw === "string" ? JSON.parse(raw) : raw)?.process;
           if (p && /__path=adventure&/.test(String(p.qs))) {
+            // sentFor означает только «запрос ещё в пути». Сервер может
+            // подтвердить его ответом без движения и оставить next_turn_ms
+            // прежним; сравнение одного времени тогда ошибочно держало маршрут
+            // в ожидании ещё четыре секунды.
+            sentFor = 0;
             const at = p.map?.obj?.[p.map.self];
             trace("adv<-", p.action, p.action_success, p.next_turn_ms, at ? at.slice(0, 2).join(",") : "?",
               (p.adventure_way || []).length, p.status, p.mode, p.exec_time);
