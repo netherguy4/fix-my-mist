@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.1
+// @version      1.4.2
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -133,6 +133,9 @@
       let waitingFor = 0;
       let sentFor = 0;
       let swallowed = 0;
+      let attempts = 0;
+      let lastTimerContext = null;
+      let lastTimerArgs = null;
       const state = () => {
         const PR = C.PR || {};
         const self = PR.map && PR.map.self;
@@ -145,12 +148,17 @@
       // тик пропало больше одного шага: последний шаг маршрут доигрывает и сам.
       const wayLen = () => (C.PR?.adventure_way || []).length;
       function stepAndWatch(why, context, args) {
+        attempts++;
         const before = wayLen();
         const result = step.apply(context, args);
         if (before > 1 && wayLen() === 0) freeze(why);
         return result;
       }
       function fmmStepHexTimerAdventure(timer) {
+        if (timer?.diff === 0) {
+          lastTimerContext = this;
+          lastTimerArgs = arguments;
+        }
         const next = Number(C.PR?.next_turn_ms);
         if (sentFor && sentFor !== next) sentFor = 0;
         if (timer?.diff === 0 && sentFor && sentFor === next) {
@@ -200,14 +208,21 @@
       // чем такой ответ отличается от удачного.
       const run = C.run;
       C.run = function fmmRunRouteTrace(raw) {
+        let retryFor = 0;
+        let retryAfterAttempt = 0;
         try {
           const p = (typeof raw === "string" ? JSON.parse(raw) : raw)?.process;
           if (p && /__path=adventure&/.test(String(p.qs))) {
-            // sentFor означает только «запрос ещё в пути». Сервер может
-            // подтвердить его ответом без движения и оставить next_turn_ms
-            // прежним; сравнение одного времени тогда ошибочно держало маршрут
-            // в ожидании ещё четыре секунды.
-            sentFor = 0;
+            // Отказ завершает запрос, даже если next_turn_ms не изменился. При
+            // успехе sentFor держим до применения ответа клиентом: координата
+            // обновляется не сразу, и ранний тик на старой позиции стирает путь.
+            const pending = sentFor;
+            if (p.action_success === false) sentFor = 0;
+            if (pending && p.action_success === false
+              && Number(p.next_turn_ms) === pending && (p.adventure_way || []).length) {
+              retryFor = pending;
+              retryAfterAttempt = attempts;
+            }
             const at = p.map?.obj?.[p.map.self];
             trace("adv<-", p.action, p.action_success, p.next_turn_ms, at ? at.slice(0, 2).join(",") : "?",
               (p.adventure_way || []).length, p.status, p.mode, p.exec_time);
@@ -215,7 +230,20 @@
         } catch {
           // Трасса не должна ронять ответ игры.
         }
-        return run.apply(this, arguments);
+        const result = run.apply(this, arguments);
+        if (retryFor && lastTimerArgs) {
+          const process = C.PR;
+          setTimeout(() => {
+            // Родной секундный тик или другой пакет могли уже продвинуть
+            // маршрут. В таком случае повтор превратился бы в двойной шаг.
+            if (attempts !== retryAfterAttempt || C.PR !== process
+              || Number(process.next_turn_ms) !== retryFor
+              || !(process.adventure_way || []).length) return;
+            trace("route", "retry", ...state());
+            fmmStepHexTimerAdventure.apply(lastTimerContext, lastTimerArgs);
+          }, 0);
+        }
+        return result;
       };
       return true;
     }
