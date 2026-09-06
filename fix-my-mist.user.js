@@ -1,12 +1,15 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.2
+// @version      1.4.3
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
 // @match        https://world.mist-game.ru/*
+// @match        https://templars-clan.online/*
+// @match        https://www.templars-clan.online/*
+// @match        https://mist.dev.nether.pp.ua/*
 // @run-at       document-start
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
@@ -23,6 +26,25 @@
   "use strict";
 
   const page = typeof unsafeWindow === "undefined" ? window : unsafeWindow;
+
+  // На сайте клана нужна только версия: игровые правки здесь запускать нельзя.
+  if (["https://templars-clan.online", "https://www.templars-clan.online", "https://mist.dev.nether.pp.ua"].includes(location.origin)) {
+    page.addEventListener("message", (event) => {
+      if (event.source !== page || event.origin !== location.origin) return;
+      const request = event.data;
+      if (!request || request.type !== "mist-clan:check-extension" || request.slug !== "fix-my-mist") return;
+      if (typeof request.requestId !== "string" || request.requestId.length > 64 || typeof GM_info === "undefined") return;
+      page.postMessage({
+        type: "mist-clan:extension-status",
+        requestId: request.requestId,
+        slug: "fix-my-mist",
+        version: GM_info.script.version,
+        manager: GM_info.scriptHandler || ""
+      }, location.origin);
+    });
+    return;
+  }
+
   const SETTING = "fix-my-mist:";
 
   // Правки включены по умолчанию: выключение — осознанный выбор, и он
