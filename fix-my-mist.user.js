@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.3
+// @version      1.4.4
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -158,6 +158,8 @@
       let attempts = 0;
       let lastTimerContext = null;
       let lastTimerArgs = null;
+      // C.sdate обновляется секундным тиком и добавляет до секунды ожидания.
+      const serverNow = () => Date.now() + Number(C.clockdiff || 0);
       const state = () => {
         const PR = C.PR || {};
         const self = PR.map && PR.map.self;
@@ -193,11 +195,12 @@
           trace("route", "timeout", ...state());
           return stepAndWatch("timeout", this, arguments);
         }
-        if (timer?.diff === 0 && next > +C.sdate) {
+        const now = serverNow();
+        if (timer?.diff === 0 && next > now) {
           C.PR.start_time_diff = 0;
           if (waitingFor !== next) {
             waitingFor = next;
-            trace("route", "defer", next - +C.sdate, ...state());
+            trace("route", "defer", next - now, ...state());
             const process = C.PR;
             const context = this;
             const args = arguments;
@@ -212,7 +215,7 @@
               swallowed = 0;
               trace("route", "step", ...state());
               stepAndWatch("step", context, args);
-            }, next - +C.sdate);
+            }, next - now);
           }
           return;
         }

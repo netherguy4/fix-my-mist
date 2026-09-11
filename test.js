@@ -163,6 +163,8 @@ const route = game({ settings: {
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
+route.now = 1499;
+route.Date = class extends Date { static now() { return route.now; } };
 route.C.sdate = 1499;
 route.C.PR.next_turn_ms = 1500;
 route.C.PR.start_time_diff = 1;
@@ -173,6 +175,7 @@ vm.runInNewContext(`
   ${script}
   C.stepHexTimerAdventure({ diff: 0 });
   const early = { steps, startTimeDiff: C.PR.start_time_diff, delay: delays[0] };
+  now = 1500;
   C.sdate = 1500;
   timers.shift()();
   const precise = steps;
@@ -210,6 +213,33 @@ assert.deepEqual(route.result.trace.filter((r) => r[0] === "adv<-"),
   [["adv<-", "move", false, 1400, "6,4", 3, 0, "adventure", 0.12]],
   "ответ хода пишется в трассу, чужие пакеты — нет");
 
+for (const clockdiff of [-100, 100, 0, undefined]) {
+  const staleClock = game({ settings: {
+    "fix-my-mist:battle-unfreeze": "off",
+    "fix-my-mist:world-map-speed": "off",
+    "fix-my-mist:socket-reconnect": "off",
+    "fix-my-mist:battle-log-row": "off",
+    "fix-my-mist:pages": "off"
+  } });
+  staleClock.Date = class extends Date { static now() { return 1300 - (clockdiff || 0); } };
+  staleClock.C.clockdiff = clockdiff;
+  staleClock.C.sdate = 500;
+  staleClock.C.PR.next_turn_ms = 1500;
+  staleClock.steps = 0;
+  staleClock.C.stepHexTimerAdventure = () => { staleClock.steps++; };
+  vm.runInNewContext(`
+    ${script}
+    C.stepHexTimerAdventure({ diff: 0 });
+    const remaining = delays[0];
+    C.PR.next_turn_ms = 1200;
+    C.stepHexTimerAdventure({ diff: 0 });
+    timers.shift()();
+    result = { remaining, steps };
+  `, staleClock);
+  assert.deepEqual(staleClock.result, { remaining: 200, steps: 1 },
+    "устаревший C.sdate не удлиняет паузу; готовый шаг идёт сразу, старый таймер отменяется");
+}
+
 // Ответ без движения завершает ожидание запроса и сразу повторяет шаг, когда
 // сервер оставил next_turn_ms прежним. Иначе правка принимала уже полученный
 // ответ за потерянный, а после первой починки всё ещё ждала секундного тика.
@@ -220,6 +250,8 @@ const rejected = game({ settings: {
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
+rejected.now = 1499;
+rejected.Date = class extends Date { static now() { return rejected.now; } };
 rejected.C.sdate = 1499;
 rejected.C.PR.next_turn_ms = 1500;
 rejected.C.PR.start_time_diff = 1;
@@ -229,6 +261,7 @@ rejected.C.stepHexTimerAdventure = () => { rejected.steps++; };
 vm.runInNewContext(`
   ${script}
   C.stepHexTimerAdventure({ diff: 0 });
+  now = 1500;
   C.sdate = 1500;
   timers.shift()();
   C.run(JSON.stringify({ process: {
@@ -252,6 +285,8 @@ const raced = game({ settings: {
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
+raced.now = 1499;
+raced.Date = class extends Date { static now() { return raced.now; } };
 raced.C.sdate = 1499;
 raced.C.PR.next_turn_ms = 1500;
 raced.C.PR.start_time_diff = 1;
@@ -261,6 +296,7 @@ raced.C.stepHexTimerAdventure = () => { raced.steps++; };
 vm.runInNewContext(`
   ${script}
   C.stepHexTimerAdventure({ diff: 0 });
+  now = 1500;
   C.sdate = 1500;
   timers.shift()();
   C.run(JSON.stringify({ process: {
@@ -285,6 +321,8 @@ const confirmed = game({ settings: {
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
+confirmed.now = 1499;
+confirmed.Date = class extends Date { static now() { return confirmed.now; } };
 confirmed.C.sdate = 1499;
 confirmed.C.PR.next_turn_ms = 1500;
 confirmed.C.PR.start_time_diff = 1;
@@ -297,6 +335,7 @@ confirmed.C.stepHexTimerAdventure = () => {
 vm.runInNewContext(`
   ${script}
   C.stepHexTimerAdventure({ diff: 0 });
+  now = 1500;
   C.sdate = 1500;
   timers.shift()();
   C.run(JSON.stringify({ process: {
