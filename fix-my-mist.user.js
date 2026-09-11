@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.4
+// @version      1.4.5
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -508,11 +508,14 @@
       return Array.isArray(def) ? [def[0], def[1], {}] : ["refresh", false, {}];
     }
 
-    // Списки страницы — те массивы, длина которых равна размеру страницы.
+    // На последней странице список может быть короче per_page.
     function listKeys(data) {
-      const size = Number(data.pages && data.pages.per_page) || 0;
+      const pages = data.pages;
+      const size = Number(pages && pages.per_page) || 0;
+      const remaining = pages && Number(pages.records) - ((Number(pages.page) || 1) - 1) * size;
+      const count = Number.isFinite(remaining) ? Math.min(size, Math.max(0, remaining)) : size;
       return Object.keys(data).filter(
-        (key) => Array.isArray(data[key]) && (data[key].length === size || key === "items_list")
+        (key) => Array.isArray(data[key]) && ((count > 0 && data[key].length === count) || key === "items_list")
       );
     }
 
@@ -601,10 +604,11 @@
       if (!pages || !(Number(pages.pages) > 1)) return;
 
       const size = mult();
-      const first = Number(pages.page) || 1;
+      const current = Number(pages.page) || 1;
+      const first = Math.floor((current - 1) / size) * size + 1;
       const last = Math.min(first + size - 1, Number(pages.pages));
       const keys = listKeys(data);
-      if (last <= first || !keys.length) {
+      if ((last <= first && current === first) || !keys.length) {
         stamp(data);
         return;
       }
@@ -613,13 +617,14 @@
       const tables = tableKeys(data);
       const merged = {};
       keys.forEach((key) => {
-        merged[key] = data[key].slice();
+        merged[key] = current === first ? data[key].slice() : [];
       });
       tables.forEach((key) => {
-        merged[key] = Object.assign({}, data[key]);
+        merged[key] = current === first ? Object.assign({}, data[key]) : {};
       });
 
-      let page = first + 1;
+      // Сервер помнит последнюю догруженную страницу, а возвращаться надо ко всему блоку.
+      let page = current === first ? first + 1 : first;
       let lastPack = null;
       busy = true;
       const release = setTimeout(() => {

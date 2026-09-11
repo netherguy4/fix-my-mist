@@ -135,6 +135,35 @@ vm.runInNewContext(`
 assert.deepEqual(perList.result.posted, [2], "у списка со своей настройкой блок в две страницы");
 assert.equal(perList.result.items, 24, "общая настройка не перебивает настройку списка");
 
+// Возврат из лавки приносит последнюю серверную страницу блока.
+for (const records of [45, 48, 49]) {
+  const market = game({ intf: "market", store: { "fix-my-mist-pages-mult": "2" } });
+  market.serverPage = (n) => ({
+    pages: { records, per_page: 12, pages: Math.ceil(records / 12), page: n },
+    places: Array.from({ length: Math.min(12, records - (n - 1) * 12) }, (_, i) => (n - 1) * 12 + i),
+    users: { [n]: `owner${n}` }
+  });
+  market.C.post = (pname, data, isLocation, dontrun, cb) => {
+    market.posted.push(data.page);
+    cb(JSON.stringify({ paths: {}, process: { data: market.serverPage(data.page) } }));
+  };
+  vm.runInNewContext(`
+    ${script}
+    C.run(JSON.stringify({ paths: {}, process: { data: serverPage(4) } }));
+    const initialHTML = MOD.pages(C.PR.data.pages);
+    ${FLUSH}
+    result = { data: C.PR.data, initialHTML, html: MOD.pages(C.PR.data.pages) };
+  `, market);
+  assert.deepEqual(market.posted, [3, 4], "возврат восстанавливает весь второй блок");
+  assert.equal(market.result.data.pages.page, 3);
+  assert.deepEqual(market.result.data.places,
+    Array.from({ length: Math.min(24, records - 24) }, (_, i) => 24 + i),
+    "магазины остаются в исходном порядке без пропусков и дублей");
+  assert.deepEqual(Object.keys(market.result.data.users), ["3", "4"]);
+  assert.ok(market.result.initialHTML.includes("alx-pages-mult"), "селект виден и на неполной странице");
+  assert.ok(market.result.html.includes("alx-pages-mult"));
+}
+
 // Opt-out: выключенная правка не цепляется за клиент вовсе.
 const off = game({ rendered: true, settings: { "fix-my-mist:pages": "off" } });
 const nativePages = off.MOD.pages;
