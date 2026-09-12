@@ -485,7 +485,12 @@ chat.now = 1000;
 chat.Date = { now: () => chat.now };
 chat.reconnects = 0;
 chat.closed = 0;
-const chatConn = () => ({ readyState: 1, close() { chat.closed++; } });
+chat.closeCallbacks = 0;
+const chatConn = () => ({
+  readyState: 1,
+  onclose() { chat.closeCallbacks++; },
+  close() { chat.closed++; this.onclose?.(); }
+});
 chat.INTF = { CHAT: {
   socket: { conn: chatConn() },
   createSocket() { this.socket = { conn: chatConn() }; return this; },
@@ -519,6 +524,36 @@ assert.equal(chat.result.after, 1, "живой сокет второй раз н
 assert.equal(chat.result.alive, 1, "после сторожа сокет снова открыт");
 assert.equal(chat.result.closed, 1, "потерянный сокет закрывается, иначе сообщения придут дважды");
 assert.equal(chat.result.lostConn, false, "у потерянного сокета соединение снято");
+assert.equal(chat.closeCallbacks, 0, "закрытие заменённого сокета не запускает get_key и новое переподключение");
+
+vm.runInNewContext(`{
+  const CHAT = INTF.CHAT;
+  const retired = CHAT.socket;
+  const conn = retired.conn;
+  const cancelled = [];
+  clearTimeout = id => { cancelled.push(id); };
+  retired.reconnectTimeout = 17;
+  conn.reconnectTimeout = 18;
+  retired.callbacks = { close: [() => { throw new Error("stale close"); }] };
+  conn.onopen = conn.onmessage = () => { throw new Error("stale data"); };
+  CHAT.createSocket();
+  const current = CHAT.socket;
+  const closeBefore = closeCallbacks;
+  current.conn.close();
+  result = {
+    cancelled,
+    callbacks: Object.keys(retired.callbacks),
+    timer: retired.reconnectTimeout,
+    handlers: [conn.onopen, conn.onmessage, conn.onclose],
+    currentClose: closeCallbacks - closeBefore
+  };
+}
+`, chat);
+assert.deepEqual(chat.result.cancelled, [17, 18], "таймеры Socket и SockJS заменённого соединения отменены");
+assert.deepEqual(chat.result.callbacks, [], "отложенные события старого сокета больше не вызывают клиент");
+assert.equal(chat.result.timer, null);
+assert.deepEqual(chat.result.handlers, [null, null, null]);
+assert.equal(chat.result.currentClose, 1, "настоящий обрыв текущего соединения по-прежнему обрабатывается");
 
 // Трасса токенов ссылок: отправка помечается тем, кто её сделал, а ответ на
 // устаревший токен (без paths) — STALE.

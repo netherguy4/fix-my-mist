@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.5
+// @version      1.4.6
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -386,9 +386,20 @@
       CHAT.createSocket = function () {
         const old = this.socket;
         const result = createSocket.apply(this, arguments);
-        if (old && old !== this.socket && old.conn) {
-          old.conn.close();
-          old.conn = false;
+        if (old && old !== this.socket) {
+          // Закрытие заменённого сокета не должно запускать get_key и новый
+          // createSocket: иначе каждое переподключение размножает следующие.
+          clearTimeout(old.reconnectTimeout);
+          old.reconnectTimeout = null;
+          old.callbacks = {};
+          if (old.conn) {
+            const conn = old.conn;
+            old.conn = false;
+            // Родной onclose записывает таймер на SockJS через this.
+            clearTimeout(conn.reconnectTimeout);
+            conn.onopen = conn.onmessage = conn.onclose = null;
+            conn.close();
+          }
         }
         return result;
       };
