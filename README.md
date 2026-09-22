@@ -104,10 +104,12 @@ GET-параметр — `Checking failed : qs-ptn`), а неизвестные 
 ## Установка
 
 Открыть [ссылку на
-установку](https://codeberg.org/netherguy/fix-my-mist/raw/branch/main/fix-my-mist.user.js)
+установку](https://templars-clan.online/fix-my-mist.user.js)
 в браузере с Tampermonkey → «Установить». Обновление приезжает само:
-Tampermonkey сверяет `@version` по `@updateURL`, а Codeberg открывается и из
-РФ, в отличие от `raw.githubusercontent.com`.
+Tampermonkey сверяет `@version` по `@updateURL` — это тот же адрес на сайте
+клана, а сайт сам берёт файл с GitHub. `raw.githubusercontent.com` и Codeberg
+открываются из РФ и Украины не у всех, сайт — у всех. Codeberg (`.mirror`)
+`publish.sh` по-прежнему обновляет — для установок со старым `@updateURL`.
 
 ## Разработка
 

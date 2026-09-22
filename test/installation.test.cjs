@@ -26,7 +26,7 @@ function clanSite(origin, manager = 'Tampermonkey') {
 
 // В песочнице нет DOM, кеша и меню: запуск игровых правок на сайте уронит тест.
 test('на сайте клана скрипт сообщает версию и не запускает игровую часть', () => {
-  for (const origin of ['https://templars-clan.online', 'https://www.templars-clan.online', 'https://mist.dev.nether.pp.ua']) {
+  for (const origin of ['https://templars-clan.online', 'https://www.templars-clan.online']) {
     assert.ok(script.includes(`// @match        ${origin}/*`));
     const { send, replies } = clanSite(origin);
     send({ type: 'mist-clan:check-extension', slug, requestId: 'first' });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.6
+// @version      1.4.7
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -9,13 +9,12 @@
 // @match        https://world.mist-game.ru/*
 // @match        https://templars-clan.online/*
 // @match        https://www.templars-clan.online/*
-// @match        https://mist.dev.nether.pp.ua/*
 // @run-at       document-start
 // @grant        unsafeWindow
 // @grant        GM_registerMenuCommand
 // @grant        GM_unregisterMenuCommand
-// @updateURL    https://codeberg.org/netherguy/fix-my-mist/raw/branch/main/fix-my-mist.user.js
-// @downloadURL  https://codeberg.org/netherguy/fix-my-mist/raw/branch/main/fix-my-mist.user.js
+// @updateURL    https://templars-clan.online/fix-my-mist.user.js
+// @downloadURL  https://templars-clan.online/fix-my-mist.user.js
 // ==/UserScript==
 
 // Набор живёт одним файлом: каждая правка — функция, которой отдают окно
@@ -28,7 +27,7 @@
   const page = typeof unsafeWindow === "undefined" ? window : unsafeWindow;
 
   // На сайте клана нужна только версия: игровые правки здесь запускать нельзя.
-  if (["https://templars-clan.online", "https://www.templars-clan.online", "https://mist.dev.nether.pp.ua"].includes(location.origin)) {
+  if (["https://templars-clan.online", "https://www.templars-clan.online"].includes(location.origin)) {
     page.addEventListener("message", (event) => {
       if (event.source !== page || event.origin !== location.origin) return;
       const request = event.data;
