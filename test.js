@@ -32,6 +32,7 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
   });
   const sandbox = {
     JSON, Math, Number, Object, Array, String, Boolean, parseFloat, console,
+    jQuery: () => ({ ajaxSend() {}, ajaxComplete() {}, ajaxError() {} }),
     localStorage: {
       getItem: (key) => (key in saved ? saved[key] : null),
       setItem(key, value) { saved[key] = value; }
@@ -179,6 +180,7 @@ assert.deepEqual(off.menu, [
   "✔ Маршрут не обрывается · эксперимент",
   "✔ Автоход без задержки · эксперимент",
   "✔ Связь не обрывается · эксперимент",
+  "✔ Таймеры не забивают очередь · эксперимент",
   "✔ Лог боя не съезжает · эксперимент",
   "✘ Длинные списки · эксперимент"
 ],
@@ -604,5 +606,52 @@ assert.equal(tok(two.result.afterPages.pack), "000004", "и в C.pack.paths");
 assert.equal(tok(two.result.afterPush), "000004", "пуш без ссылки рюкзака не возвращает потраченный токен");
 assert.equal(tok(two.result.afterStale), "000004", "потраченный токен из пакета не затирает свежий");
 assert.deepEqual(two.result.trace, [["revert", "rs&__path=rs", "refresh", "aaaaaa", "000004"]], "откат виден в трассе");
+
+const refresh = game({ settings: { "fix-my-mist:pages": "off" } });
+const ajax = {};
+let now = 0;
+refresh.Date = class extends Date { static now() { return now; } };
+refresh.jQuery = () => ({
+  ajaxSend(fn) { ajax.send = fn; },
+  ajaxComplete(fn) { ajax.complete = fn; }
+});
+refresh.C.post = function (pname, data, isLocation, dontrun, cb) {
+  const xhr = { status: 200 };
+  refresh.posted.push({ pname, data, cb, xhr });
+  ajax.send(null, xhr, { url: "/?ctrl=Location&a=refresh&__path=" + pname + "&h=test" });
+  return this;
+};
+vm.runInNewContext(script, refresh);
+for (let i = 0; i < 66; i++) {
+  now += 1000;
+  assert.equal(refresh.C.post("refresh"), refresh.C);
+}
+assert.equal(refresh.posted.length, 1, "таймер не копит refresh, даже если ответ задержан на минуту");
+refresh.C.post("refresh", { page: 2 }, false, true, () => {});
+assert.equal(refresh.posted.length, 2, "догрузка страницы с колбэком не подавляется");
+ajax.complete(null, refresh.posted[1].xhr);
+refresh.C.post("refresh");
+assert.equal(refresh.posted.length, 2, "завершение другого refresh не снимает ожидание первого");
+refresh.C.post("get_key");
+ajax.complete(null, refresh.posted[2].xhr);
+assert.equal(refresh.posted.length, 3, "другие запросы проходят и не снимают ожидание refresh");
+const failed = refresh.posted[0].xhr;
+failed.status = 423;
+ajax.complete(null, failed);
+refresh.C.post("refresh");
+now += 4999;
+refresh.C.post("refresh");
+assert.equal(refresh.posted.length, 3, "после ошибки есть пауза перед повтором");
+now++;
+refresh.C.post("refresh");
+assert.equal(refresh.posted.length, 4, "после паузы таймер повторяет запрос");
+refresh.posted[3].xhr.status = 0;
+ajax.complete(null, refresh.posted[3].xhr);
+now += 5000;
+refresh.C.post("refresh");
+assert.equal(refresh.posted.length, 5, "повтор разрешён и после сетевой ошибки");
+ajax.complete(null, refresh.posted[4].xhr);
+refresh.C.post("refresh");
+assert.equal(refresh.posted.length, 6, "успешный ответ освобождает обновление");
 
 console.log("fix-my-mist ok");

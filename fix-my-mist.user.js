@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.7
-// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, длинные списки показываются целиком, лог боя не съезжает под поле.
+// @version      1.4.8
+// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, таймеры не забивают очередь запросов, длинные списки показываются целиком, лог боя не съезжает под поле.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -417,6 +417,40 @@
         deadSince = 0;
         CHAT.autoReconnect();
       }, 1000);
+      return true;
+    }
+
+    if (patch()) return;
+    const waiting = setInterval(() => {
+      if (patch()) clearInterval(waiting);
+    }, 500);
+    setTimeout(() => clearInterval(waiting), 60000);
+  }
+
+  // Истёкший simpleTimer и таймер склада шлют refresh каждый тик до ответа.
+  // При обрыве сети это забивает очередь браузера десятками одинаковых запросов.
+  function timerRefresh(window) {
+    function patch() {
+      const C = window.C;
+      const $ = window.jQuery;
+      if (typeof C?.post !== "function" || typeof $ !== "function") return false;
+      if (C.__fmmTimerRefresh) return true;
+      C.__fmmTimerRefresh = true;
+      const pending = new Set();
+      let retryAt = 0;
+      $(document).ajaxSend((_, xhr, opts) => {
+        if (/(?:[?&])__path=refresh(?:&|$)/.test(opts.url)) pending.add(xhr);
+      });
+      $(document).ajaxComplete((_, xhr) => {
+        if (!pending.delete(xhr)) return;
+        if (xhr.status < 200 || xhr.status >= 300) retryAt = Date.now() + 5000;
+      });
+      const post = C.post;
+      C.post = function fmmTimerRefreshPost(pname, data, isLocation, dontrun, cb) {
+        if (pname === "refresh" && data == null && !dontrun && !cb &&
+            (pending.size || Date.now() < retryAt)) return this;
+        return post.apply(this, arguments);
+      };
       return true;
     }
 
@@ -861,6 +895,7 @@
     { id: "adventure-route", title: "Маршрут не обрывается", experimental: true, run: adventureRouteTiming },
     { id: "world-map-speed", title: "Автоход без задержки", experimental: true, run: worldMapSpeed },
     { id: "socket-reconnect", title: "Связь не обрывается", experimental: true, run: socketReconnect },
+    { id: "timer-refresh", title: "Таймеры не забивают очередь", experimental: true, run: timerRefresh },
     { id: "battle-log-row", title: "Лог боя не съезжает", experimental: true, run: battleLogRow },
     { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier }
   ];
