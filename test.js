@@ -182,7 +182,8 @@ assert.deepEqual(off.menu, [
   "✔ Связь не обрывается · эксперимент",
   "✔ Таймеры не забивают очередь · эксперимент",
   "✔ Лог боя не съезжает · эксперимент",
-  "✘ Длинные списки · эксперимент"
+  "✘ Длинные списки · эксперимент",
+  "✔ Перевод из меню ника"
 ],
   "меню показывает состояние каждой правки");
 
@@ -191,6 +192,7 @@ const route = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
   "fix-my-mist:world-map-speed": "off",
   "fix-my-mist:socket-reconnect": "off",
+  "fix-my-mist:transfer-menu": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -249,6 +251,7 @@ for (const clockdiff of [-100, 100, 0, undefined]) {
     "fix-my-mist:battle-unfreeze": "off",
     "fix-my-mist:world-map-speed": "off",
     "fix-my-mist:socket-reconnect": "off",
+    "fix-my-mist:transfer-menu": "off",
     "fix-my-mist:battle-log-row": "off",
     "fix-my-mist:pages": "off"
   } });
@@ -278,6 +281,7 @@ const rejected = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
   "fix-my-mist:world-map-speed": "off",
   "fix-my-mist:socket-reconnect": "off",
+  "fix-my-mist:transfer-menu": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -313,6 +317,7 @@ const raced = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
   "fix-my-mist:world-map-speed": "off",
   "fix-my-mist:socket-reconnect": "off",
+  "fix-my-mist:transfer-menu": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -349,6 +354,7 @@ const confirmed = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
   "fix-my-mist:world-map-speed": "off",
   "fix-my-mist:socket-reconnect": "off",
+  "fix-my-mist:transfer-menu": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -385,6 +391,7 @@ const walk = game({ settings: {
   "fix-my-mist:battle-unfreeze": "off",
   "fix-my-mist:adventure-route": "off",
   "fix-my-mist:socket-reconnect": "off",
+  "fix-my-mist:transfer-menu": "off",
   "fix-my-mist:battle-log-row": "off",
   "fix-my-mist:pages": "off"
 } });
@@ -653,5 +660,37 @@ assert.equal(refresh.posted.length, 5, "повтор разрешён и пос�
 ajax.complete(null, refresh.posted[4].xhr);
 refresh.C.post("refresh");
 assert.equal(refresh.posted.length, 6, "успешный ответ освобождает обновление");
+
+// «Перевод» в меню ника открывает окно перевода с номером счёта персонажа.
+const transfer = game({ settings: { "fix-my-mist:pages": "off" } });
+const dom = { item: null, value: null, menuOpen: false, windows: 0 };
+// Цепочный фейк jQuery: каждый вызов пишет, что с ним сделали.
+const jq = (sel) => {
+  const node = {
+    length: sel === "#context_menu" ? Number(dom.menuOpen) : 1,
+    ajaxSend() {}, ajaxComplete() {}, bind() { return node; }, focus() { return node; },
+    remove() { return node; }, find() { return node; }, setMenuPos() { return node; },
+    click(fn) { node.onclick = fn; return node; },
+    insertBefore() { dom.item = node; return node; },
+    val(v) { if (sel === "#trsfr_to input") dom.value = v; return node; },
+    html: sel
+  };
+  return node;
+};
+jq.parseJSON = JSON.parse;
+transfer.jQuery = jq;
+transfer.C.PL = { id: 1 };
+transfer.C.post = (pname, data, isLocation, dontrun, cb) => cb(JSON.stringify({ process: { canvas: { data: {
+  account: { transfer_balance: 2704, money: [0, 2704] } } } } }));
+transfer.INTF = { contextMenu() { dom.menuOpen = true; } };
+transfer.MOD = { windowTransferRealMoney() { dom.windows++; }, windowExchangeRealMoney() {} };
+vm.runInNewContext(script, transfer);
+transfer.INTF.contextMenu(1, "self", {});
+assert.equal(dom.item, null, "на свой ник пункт не добавляется");
+transfer.INTF.contextMenu(2580916, "ZloyPer4ik", {});
+assert.ok(dom.item.html.includes("Перевод"), "в меню ника есть «Перевод»");
+dom.item.onclick();
+assert.equal(dom.windows, 1, "открывается окно перевода");
+assert.equal(dom.value, 2580916, "номер счёта — id персонажа");
 
 console.log("fix-my-mist ok");

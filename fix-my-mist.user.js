@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.4.8
-// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, таймеры не забивают очередь запросов, длинные списки показываются целиком, лог боя не съезжает под поле.
+// @version      1.5.0
+// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, таймеры не забивают очередь запросов, длинные списки показываются целиком, лог боя не съезжает под поле, перевод червонных из меню ника.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -885,6 +885,63 @@
     }
   }
 
+  // Перевод из меню ника.
+  //
+  // Червонные игра переводит по номеру счёта, а номер счёта — это id
+  // персонажа. Окно перевода открывается только из «Информации», и номер в нём
+  // приходится узнавать и вписывать руками. Меню правой кнопки по нику id
+  // знает: добавляем туда «Перевод», который открывает то же окно тем же
+  // запросом, что ссылка «перевод червонных монет», и сразу вписывает номер.
+  function transferMenu(window) {
+    function patch() {
+      const { INTF, MOD, C } = window;
+      const $ = window.jQuery;
+      if (typeof INTF?.contextMenu !== "function" || typeof MOD?.windowTransferRealMoney !== "function"
+        || typeof $ !== "function") return false;
+      if (INTF.__fmmTransferMenu) return true;
+      INTF.__fmmTransferMenu = true;
+
+      const contextMenu = INTF.contextMenu;
+      INTF.contextMenu = function (id, login, event) {
+        const result = contextMenu.apply(this, arguments);
+        const menu = $("#context_menu");
+        // На свой ник игра меню не рисует.
+        if (id == C.PL.id || !menu.length) return result;
+        $('<div class="transfer el">Перевод</div>')
+          .bind("mouseover.contextmenu", function () { $(this).addClass("el_sel"); })
+          .bind("mouseleave.contextmenu", function () { $(this).removeClass("el_sel"); })
+          .click(() => {
+            // Тело — копия обработчика той ссылки: она живёт только в DOM
+            // вкладки «Информация», позвать её отсюда нечем.
+            C.post("real_transfer_info", {}, null, true, (raw) => {
+              const data = $.parseJSON(raw).process.canvas.data;
+              $(".wnd_real_operations").remove();
+              if (Math.min(data.account.transfer_balance, data.account.money[1]) > 20) {
+                MOD.windowTransferRealMoney(data);
+                // #trsfr_to — обёртка, само поле внутри.
+                $("#trsfr_to input").val(id);
+                $(".wnd_real_operations input[name=amount]").focus();
+              } else {
+                MOD.windowExchangeRealMoney(data, false,
+                  '<div class="center pb10">Нет червонных монет, доступных к переводу</div>');
+              }
+            });
+          })
+          .insertBefore(menu.find(".profile"));
+        // Игра ставит меню по высоте без нашего пункта — пересчитываем.
+        menu.setMenuPos(event);
+        return result;
+      };
+      return true;
+    }
+
+    if (patch()) return;
+    const waiting = setInterval(() => {
+      if (patch()) clearInterval(waiting);
+    }, 500);
+    setTimeout(() => clearInterval(waiting), 60000);
+  }
+
   // Правка на обкатке помечается `experimental`: в меню менеджера скриптов к ней
   // дописывается «эксперимент», а витрина на mist-clan вычитывает этот же флаг
   // прямо из текста скрипта и рисует метку у карточки. Так пометка живёт в
@@ -897,7 +954,8 @@
     { id: "socket-reconnect", title: "Связь не обрывается", experimental: true, run: socketReconnect },
     { id: "timer-refresh", title: "Таймеры не забивают очередь", experimental: true, run: timerRefresh },
     { id: "battle-log-row", title: "Лог боя не съезжает", experimental: true, run: battleLogRow },
-    { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier }
+    { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier },
+    { id: "transfer-menu", title: "Перевод из меню ника", run: transferMenu }
   ];
 
   for (const fix of FIXES) {
