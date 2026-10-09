@@ -698,7 +698,7 @@ assert.equal(dom.value, 2580916, "номер счёта — id персонаж�
 // Лук снимает щит автоматически; HP обрезается при каждом уменьшении максимума.
 // Замена показывает комплект, в который надета вещь; switch_kit меняет только вид.
 // Родной C.post показывает лоадер, а C.run прячет его инлайн-стилем.
-function kitsGame({ ranged = false, sharedLeft = false, twoHanded = false, withoutArrows = false, initial = 1 } = {}) {
+function kitsGame({ ranged = false, sharedLeft = false, twoHanded = false, withoutArrows = false, withoutSwitcher = false, initial = 1 } = {}) {
   const settings = Object.fromEntries([
     "battle-unfreeze", "adventure-route", "world-map-speed", "socket-reconnect",
     "timer-refresh", "battle-log-row", "pages", "transfer-menu"
@@ -733,7 +733,7 @@ function kitsGame({ ranged = false, sharedLeft = false, twoHanded = false, witho
       items_list: [...used].map((id) => id === "arrows"
         ? { ...items[id], info: { total_quantity: kits[view].sword === "bow" ? 30 : 0 } } : items[id]), alternative_list };
   };
-  const dom = { button: null, count: 0 };
+  const dom = { button: null, count: 0, kitSwitcher: !withoutSwitcher, redraw: true };
   const timeouts = new Map();
   const requests = [];
   const messages = [];
@@ -767,12 +767,21 @@ function kitsGame({ ranged = false, sharedLeft = false, twoHanded = false, witho
   };
   sandbox.setTimeout = (fn, ms) => { timeouts.set(++timer, { fn, ms }); return timer; };
   sandbox.clearTimeout = (id) => timeouts.delete(id);
-  sandbox.document.querySelector = (selector) => selector === ".set_control" ? {} : dom.button;
+  sandbox.document.querySelector = (selector) => {
+    if (selector === ".set_control") return {};
+    if (selector === ".kit_switcher") return dom.kitSwitcher ? {} : null;
+    if (selector === ".fmm-swap-kits") return dom.button;
+    return null;
+  };
   sandbox.UI.DOM = (params) => {
     assert.equal(params.ctrl, "button", "кнопка использует родной контрол игры");
     assert.equal(dom.button, null, "на экране нет дубликата кнопки");
     dom.count++;
-    dom.button = { click: params.handlers.click, disabled: false };
+    dom.button = { click: params.handlers.click, disabled: false,
+      closest(selector) {
+        assert.equal(selector, ".ui_button_block", "удаляется вся родная рамка кнопки");
+        return { remove() { dom.button = null; } };
+      } };
   };
   sandbox.INTF = { message: (message) => messages.push(message) };
   sandbox.C.PR = { intf: "stuff", data: data() };
@@ -784,7 +793,7 @@ function kitsGame({ ranged = false, sharedLeft = false, twoHanded = false, witho
     sandbox.C.paths = pack.paths;
     sandbox.C.PR.data = pack.process.data;
     Object.assign(sandbox.C.PL, pack.personal);
-    dom.button = null;
+    if (dom.redraw) dom.button = null;
   };
   sandbox.C.post = (name, args, isLocation, dontrun, cb) => {
     assert.equal(pending, undefined, "не более одного запроса одновременно");
@@ -848,6 +857,40 @@ function kitsGame({ ranged = false, sharedLeft = false, twoHanded = false, witho
   return { sandbox, kits, dom, requests, messages, timeouts, respond, complete, idle, held, listeners,
     pending: () => pending, view: () => view, quiver: () => quiver };
 }
+
+const singleKit = kitsGame({ withoutSwitcher: true });
+assert.equal(singleKit.sandbox.C.PR.data.is_alt_kit_allowed, true, "флаг сам по себе не доказывает наличие переключателя");
+assert.equal(singleKit.dom.button, null, "без переключателя под портретом кнопка не появляется");
+assert.equal(singleKit.dom.count, 0);
+assert.equal(singleKit.requests.length, 0, "проверка доступности не отправляет запросов");
+singleKit.idle();
+
+const lostSwitcher = kitsGame();
+const staleSwapClick = lostSwitcher.dom.button.click;
+lostSwitcher.dom.kitSwitcher = false;
+staleSwapClick();
+assert.equal(lostSwitcher.requests.length, 0, "старый обработчик не работает без штатного переключателя");
+lostSwitcher.dom.redraw = false;
+const refreshKits = () => lostSwitcher.sandbox.C.run(JSON.stringify({ paths: lostSwitcher.sandbox.C.paths,
+  process: { data: lostSwitcher.sandbox.C.PR.data }, personal: { ...lostSwitcher.sandbox.C.PL } }));
+refreshKits();
+assert.equal(lostSwitcher.dom.button, null, "исчезнувший переключатель убирает кнопку вместе с рамкой");
+lostSwitcher.dom.kitSwitcher = true;
+refreshKits();
+assert.ok(lostSwitcher.dom.button, "при возвращении переключателя кнопка снова появляется");
+assert.equal(lostSwitcher.dom.count, 2, "создаётся одна новая кнопка");
+lostSwitcher.idle();
+
+const lostSwitcherDuringSwap = kitsGame();
+const beforeLostSwitcher = JSON.parse(JSON.stringify(lostSwitcherDuringSwap.kits));
+lostSwitcherDuringSwap.dom.button.click();
+lostSwitcherDuringSwap.dom.kitSwitcher = false;
+lostSwitcherDuringSwap.complete();
+assert.deepEqual(lostSwitcherDuringSwap.kits, { 1: beforeLostSwitcher[2], 2: beforeLostSwitcher[1] },
+  "перерисовка переключателя не прерывает уже проверенную перестановку");
+assert.equal(lostSwitcherDuringSwap.dom.button, null);
+assert.equal(lostSwitcherDuringSwap.messages.length, 0);
+lostSwitcherDuringSwap.idle();
 
 for (const [ranged, initial] of [[false, 1], [false, 2], [true, 1], [true, 2]]) {
   const swap = kitsGame({ ranged, initial });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.6.0
+// @version      1.6.1
 // @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, таймеры не забивают очередь запросов, длинные списки показываются целиком, лог боя не съезжает под поле, перевод червонных из меню ника, перестановка боевых комплектов одной кнопкой.
 // @author       nether
 // @match        https://mist-game.ru/*
@@ -967,9 +967,13 @@
       function render() {
         document.documentElement.classList.toggle("fmm-swapping-kits", Boolean(busy));
         const data = C.PR?.data;
+        const button = document.querySelector(".fmm-swap-kits");
         if (C.PR?.intf !== "stuff" || !data?.can_set || !data.is_alt_kit_allowed
-          || !document.querySelector(".set_control")) return;
-        if (!document.querySelector(".fmm-swap-kits")) {
+          || !document.querySelector(".kit_switcher") || !document.querySelector(".set_control")) {
+          button?.closest(".ui_button_block")?.remove();
+          return;
+        }
+        if (!button) {
           UI.DOM({
             ctrl: "button", content: "1 ↔ 2", classes: "fmm-swap-kits",
             title: "Поменять местами боевые комплекты 1 и 2",
@@ -989,7 +993,8 @@
         if (busy || blocked) return;
         if (window.TR) return INTF.message("Дождитесь завершения текущего действия.");
         const data = C.PR?.data;
-        if (C.PR?.intf !== "stuff" || !data?.can_set || !data.is_alt_kit_allowed) return;
+        if (C.PR?.intf !== "stuff" || !data?.can_set || !data.is_alt_kit_allowed
+          || !document.querySelector(".kit_switcher")) return;
         const kits = [null, {}, {}];
         for (const kit of [1, 2]) {
           for (const slot of ["sword", "shield"]) {
@@ -1041,7 +1046,7 @@
 
         function next() {
           if (busy !== operation) return;
-          if (C.PR?.intf !== "stuff" || !C.PR.data?.can_set) {
+          if (C.PR?.intf !== "stuff" || !C.PR.data?.can_set || !C.PR.data.is_alt_kit_allowed) {
             return finish("Перестановка остановлена: экипировка сейчас недоступна.");
           }
           if (window.TR) {
