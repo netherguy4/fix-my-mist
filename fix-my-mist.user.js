@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Fix My Mist
 // @namespace    https://github.com/netherguy4/fix-my-mist
-// @version      1.5.0
-// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, таймеры не забивают очередь запросов, длинные списки показываются целиком, лог боя не съезжает под поле, перевод червонных из меню ника.
+// @version      1.6.0
+// @description  Исправления для Mist: бой не зависает, маршруты не обрываются, автоход не тормозит, связь не обрывается, таймеры не забивают очередь запросов, длинные списки показываются целиком, лог боя не съезжает под поле, перевод червонных из меню ника, перестановка боевых комплектов одной кнопкой.
 // @author       nether
 // @match        https://mist-game.ru/*
 // @match        https://www.mist-game.ru/*
@@ -942,6 +942,185 @@
     setTimeout(() => clearInterval(waiting), 60000);
   }
 
+  function swapBattleKits(window) {
+    function patch() {
+      const { C, UI, INTF } = window;
+      if (typeof C?.run !== "function" || typeof C?.post !== "function"
+        || typeof UI?.DOM !== "function" || typeof INTF?.message !== "function") return false;
+      if (C.__fmmSwapKits) return true;
+      C.__fmmSwapKits = true;
+      let busy = false;
+      let blocked = false;
+      let waiting;
+      const style = document.createElement("style");
+      // Родной C.post скрывает лоадер после каждого запроса; держим его до конца всей перестановки.
+      style.textContent = "html.fmm-swapping-kits #loading_wnd { display:block!important } html.fmm-swapping-kits #selfstuff, html.fmm-swapping-kits #selfstufftrip { opacity:.35 }";
+      document.documentElement.appendChild(style);
+      for (const type of ["click", "keydown", "keyup"]) {
+        document.addEventListener(type, (event) => {
+          if (!busy) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }, true);
+      }
+
+      function render() {
+        document.documentElement.classList.toggle("fmm-swapping-kits", Boolean(busy));
+        const data = C.PR?.data;
+        if (C.PR?.intf !== "stuff" || !data?.can_set || !data.is_alt_kit_allowed
+          || !document.querySelector(".set_control")) return;
+        if (!document.querySelector(".fmm-swap-kits")) {
+          UI.DOM({
+            ctrl: "button", content: "1 ↔ 2", classes: "fmm-swap-kits",
+            title: "Поменять местами боевые комплекты 1 и 2",
+            wrapperClasses: "fl ml10", handlers: { click: swap }
+          }, ".set_control", "append");
+        }
+        document.querySelector(".fmm-swap-kits").disabled = Boolean(busy) || blocked;
+      }
+
+      function item(kit, slot) {
+        const data = C.PR?.data;
+        return data?.items_list?.find((i) => i.slot.includes(slot)
+          && data.alternative_list?.[i.id + "|" + kit] === kit);
+      }
+
+      function swap() {
+        if (busy || blocked) return;
+        if (window.TR) return INTF.message("Дождитесь завершения текущего действия.");
+        const data = C.PR?.data;
+        if (C.PR?.intf !== "stuff" || !data?.can_set || !data.is_alt_kit_allowed) return;
+        const kits = [null, {}, {}];
+        for (const kit of [1, 2]) {
+          for (const slot of ["sword", "shield"]) {
+            const equipped = item(kit, slot);
+            // shortcut: проверены два отдельных предмета в каждом комплекте; расширить после проверки пустых рук и двуручного оружия.
+            if (!equipped || equipped.slot.length !== 1) {
+              return INTF.message("Для перестановки нужны два отдельных предмета в руках в каждом комплекте.");
+            }
+            kits[kit][slot] = equipped;
+          }
+        }
+        const steps = [];
+        if (kits[1].sword.type === 11 && kits[2].sword.type === 11) {
+          return INTF.message("Перестановка двух комплектов с луками пока не поддерживается.");
+        }
+        const bowKit = [1, 2].find((kit) => kits[3 - kit].sword.type === 11);
+        function add(kit, slot) {
+          const incoming = kits[3 - kit][slot];
+          if (incoming.id !== kits[kit][slot].id) steps.push({ kit, slot, incoming });
+        }
+        // Надетый лук нельзя скопировать: сначала освобождаем его заменой в исходном комплекте.
+        if (bowKit) {
+          add(3 - bowKit, "sword");
+          add(bowKit, "shield");
+          add(bowKit, "sword");
+          add(3 - bowKit, "shield");
+          const arrows = data.items_list.find((i) => i.slot.includes("quiver"));
+          if (arrows && steps.length) steps.push({ kit: bowKit, slot: "quiver", incoming: arrows });
+        } else {
+          for (const kit of [1, 2]) for (const slot of ["sword", "shield"]) add(kit, slot);
+        }
+        if (!steps.length) return;
+        steps.push({ kit: data.kit, switchKit: true });
+        const operation = {};
+        let availableUntil = Date.now() + 15000;
+        busy = operation;
+        render();
+
+        function finish(message) {
+          clearTimeout(waiting);
+          busy = false;
+          const loader = document.getElementById("loading_wnd");
+          if (loader) loader.style.display = "none";
+          // После неизвестного или частичного результата повтор без обновления может поменять уже другой набор вещей.
+          blocked = Boolean(message);
+          render();
+          if (message) INTF.message(message + " Обновите страницу и проверьте оба комплекта.");
+        }
+
+        function next() {
+          if (busy !== operation) return;
+          if (C.PR?.intf !== "stuff" || !C.PR.data?.can_set) {
+            return finish("Перестановка остановлена: экипировка сейчас недоступна.");
+          }
+          if (window.TR) {
+            if (Date.now() >= availableUntil) return finish("Игра не освободила очередь действий.");
+            waiting = setTimeout(next, 50);
+            return;
+          }
+          const step = steps.shift();
+          if (step?.switchKit && C.PR.data.kit === step.kit) return next();
+          if (!step) {
+            for (const kit of [1, 2]) {
+              for (const slot of ["sword", "shield"]) {
+                if (item(kit, slot)?.id !== kits[3 - kit][slot].id) {
+                  return finish("Сервер не завершил перестановку.");
+                }
+              }
+            }
+            return finish();
+          }
+          const target = step.switchKit ? null : step.slot === "quiver"
+            ? C.PR.data.items_list.find((i) => i.slot.includes("quiver")) : item(step.kit, step.slot);
+          waiting = setTimeout(() => finish("Ответ сервера не получен; результат последнего действия неизвестен."), 15000);
+          try {
+            C.post(step.switchKit ? "switch_kit" : "inventory_used", step.switchKit ? { kit: step.kit } : {
+              action: "dress", iid: step.incoming.id, tab: step.incoming.tab,
+              from: "stored", slot: step.slot, itarget: target?.id || "", kit: step.kit
+            }, false, true, (raw) => {
+              if (busy !== operation) return;
+              clearTimeout(waiting);
+              try {
+                if (C.PR?.intf !== "stuff" || !C.PR.data?.can_set) {
+                  return finish("Окно экипировки изменилось во время перестановки.");
+                }
+                const pack = typeof raw === "string" ? JSON.parse(raw) : raw;
+                if (!pack?.paths) return finish("Сервер не подтвердил действие.");
+                // Применение ответа обновляет одноразовые ссылки перед следующим запросом.
+                C.run(raw);
+                if (step.switchKit) {
+                  if (C.PR.data.kit !== step.kit) return finish("Не удалось вернуть исходный номер комплекта.");
+                } else {
+                  const equipped = step.slot === "quiver"
+                    ? C.PR.data.items_list.find((i) => i.slot.includes("quiver")) : item(step.kit, step.slot);
+                  if (equipped?.id !== step.incoming.id) {
+                    return finish("Сервер не подтвердил замену предмета.");
+                  }
+                }
+                // Родной обработчик освобождает блокировку запроса после возврата из колбэка.
+                availableUntil = Date.now() + 15000;
+                waiting = setTimeout(next, 0);
+              } catch (error) {
+                console.error("[Fix My Mist] swap-kits", error);
+                finish("Не удалось обработать ответ сервера.");
+              }
+            });
+          } catch (error) {
+            console.error("[Fix My Mist] swap-kits", error);
+            finish("Не удалось выполнить перестановку.");
+          }
+        }
+        next();
+      }
+
+      const run = C.run;
+      C.run = function () {
+        const result = run.apply(this, arguments);
+        render();
+        return result;
+      };
+      render();
+      return true;
+    }
+
+    if (patch()) return;
+    const waiting = setInterval(() => {
+      if (patch()) clearInterval(waiting);
+    }, 500);
+    setTimeout(() => clearInterval(waiting), 60000);
+  }
+
   // Правка на обкатке помечается `experimental`: в меню менеджера скриптов к ней
   // дописывается «эксперимент», а витрина на mist-clan вычитывает этот же флаг
   // прямо из текста скрипта и рисует метку у карточки. Так пометка живёт в
@@ -955,7 +1134,8 @@
     { id: "timer-refresh", title: "Таймеры не забивают очередь", experimental: true, run: timerRefresh },
     { id: "battle-log-row", title: "Лог боя не съезжает", experimental: true, run: battleLogRow },
     { id: "pages", title: "Длинные списки", experimental: true, run: pagesMultiplier },
-    { id: "transfer-menu", title: "Перевод из меню ника", run: transferMenu }
+    { id: "transfer-menu", title: "Перевод из меню ника", run: transferMenu },
+    { id: "swap-kits", title: "Перестановка боевых комплектов", experimental: true, run: swapBattleKits }
   ];
 
   for (const fix of FIXES) {

@@ -21,7 +21,7 @@ function game({ rendered = false, store, intf, settings = {} } = {}) {
   const ticks = [];
   const posted = [];
   const menu = [];
-  const saved = Object.assign({ "fix-my-mist-pages-mult": "5" }, store, settings);
+  const saved = Object.assign({ "fix-my-mist-pages-mult": "5", "fix-my-mist:swap-kits": "off" }, store, settings);
   const loader = { style: { display: "none" } };
   const serverPage = (n) => ({
     pages: { records: 3164, per_page: 12, pages: 264, page: n },
@@ -183,7 +183,8 @@ assert.deepEqual(off.menu, [
   "✔ Таймеры не забивают очередь · эксперимент",
   "✔ Лог боя не съезжает · эксперимент",
   "✘ Длинные списки · эксперимент",
-  "✔ Перевод из меню ника"
+  "✔ Перевод из меню ника",
+  "✘ Перестановка боевых комплектов · эксперимент"
 ],
   "меню показывает состояние каждой правки");
 
@@ -692,5 +693,291 @@ assert.ok(dom.item.html.includes("Перевод"), "в меню ника ест
 dom.item.onclick();
 assert.equal(dom.windows, 1, "открывается окно перевода");
 assert.equal(dom.value, 2580916, "номер счёта — id персонажа");
+
+// Сервер сохраняет вещь в обоих комплектах, а вытесненную убирает в рюкзак.
+// Лук снимает щит автоматически; HP обрезается при каждом уменьшении максимума.
+// Замена показывает комплект, в который надета вещь; switch_kit меняет только вид.
+// Родной C.post показывает лоадер, а C.run прячет его инлайн-стилем.
+function kitsGame({ ranged = false, sharedLeft = false, twoHanded = false, withoutArrows = false, initial = 1 } = {}) {
+  const settings = Object.fromEntries([
+    "battle-unfreeze", "adventure-route", "world-map-speed", "socket-reconnect",
+    "timer-refresh", "battle-log-row", "pages", "transfer-menu"
+  ].map((id) => ["fix-my-mist:" + id, "off"]));
+  settings["fix-my-mist:swap-kits"] = "on";
+  const sandbox = game({ settings });
+  const items = {
+    bow: { id: "bow", tab: 1, type: 11, slot: ["sword"], hp: 13 },
+    sword: { id: "sword", tab: 1, type: 6, slot: ["sword"], hp: 71 },
+    dagger: { id: "dagger", tab: 1, type: 8, slot: ["shield"], hp: 7 },
+    shield: { id: "shield", tab: 1, type: 9, slot: ["shield"], hp: 29 },
+    armor: { id: "armor", tab: 1, slot: ["armor"], hp: 0 },
+    arrows: { id: "arrows", tab: 4, slot: ["quiver"], info: { total_quantity: 30 } }
+  };
+  if (twoHanded) items.sword.slot.push("shield");
+  const kits = ranged
+    ? { 1: { sword: "bow", shield: "dagger" }, 2: { sword: "sword", shield: "shield" } }
+    : { 1: { sword: "sword", shield: "shield" }, 2: { sword: "bow", shield: "dagger" } };
+  if (sharedLeft) kits[1].shield = kits[2].shield = "dagger";
+  let quiver = !withoutArrows;
+  let view = initial;
+  const maxHP = () => 1000 + Object.values(kits[1]).reduce((hp, id) => hp + (items[id]?.hp || 0), 0);
+  const data = () => {
+    const alternative_list = {};
+    const used = new Set(["armor", ...(quiver ? ["arrows"] : [])]);
+    for (const kit of [1, 2]) {
+      for (const id of Object.values(kits[kit])) {
+        if (id) { used.add(id); alternative_list[id + "|" + kit] = kit; }
+      }
+    }
+    return { kit: view, can_set: true, is_alt_kit_allowed: true,
+      items_list: [...used].map((id) => id === "arrows"
+        ? { ...items[id], info: { total_quantity: kits[view].sword === "bow" ? 30 : 0 } } : items[id]), alternative_list };
+  };
+  const dom = { button: null, count: 0 };
+  const timeouts = new Map();
+  const requests = [];
+  const messages = [];
+  let timer = 0;
+  let pending;
+  const classes = new Set();
+  const listeners = [];
+  let css = "";
+  sandbox.document.documentElement = {
+    classList: { toggle: (name, force) => { if (force) classes.add(name); else classes.delete(name); return force; } },
+    appendChild: (node) => { css += node.textContent; }
+  };
+  sandbox.document.addEventListener = (type, fn, capture) => listeners.push({ type, fn, capture });
+  const loaderShown = () => sandbox.loader.style.display !== "none" || (classes.has("fmm-swapping-kits")
+    && /html\.fmm-swapping-kits #loading_wnd \{[^}]*display:block!important/.test(css));
+  // true — событие не дошло до игры.
+  const blocked = (type) => {
+    const event = { prevented: false, stopped: false,
+      preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+    for (const l of listeners) if (l.type === type && l.capture === true) l.fn(event);
+    return event.prevented && event.stopped;
+  };
+  const idle = () => {
+    assert.equal(classes.has("fmm-swapping-kits"), false, "класс снят после окончания");
+    assert.equal(sandbox.loader.style.display, "none", "родной лоадер спрятан");
+    for (const type of ["click", "keydown", "keyup"]) assert.equal(blocked(type), false, "ввод снова доходит до игры");
+  };
+  const held = () => {
+    assert.ok(loaderShown(), "лоадер держится всю перестановку");
+    for (const type of ["click", "keydown", "keyup"]) assert.equal(blocked(type), true, "ввод в игру заблокирован");
+  };
+  sandbox.setTimeout = (fn, ms) => { timeouts.set(++timer, { fn, ms }); return timer; };
+  sandbox.clearTimeout = (id) => timeouts.delete(id);
+  sandbox.document.querySelector = (selector) => selector === ".set_control" ? {} : dom.button;
+  sandbox.UI.DOM = (params) => {
+    assert.equal(params.ctrl, "button", "кнопка использует родной контрол игры");
+    assert.equal(dom.button, null, "на экране нет дубликата кнопки");
+    dom.count++;
+    dom.button = { click: params.handlers.click, disabled: false };
+  };
+  sandbox.INTF = { message: (message) => messages.push(message) };
+  sandbox.C.PR = { intf: "stuff", data: data() };
+  sandbox.C.PL = { health: maxHP(), health_max: maxHP() };
+  sandbox.C.paths = { inventory_used: "token:0", switch_kit: "token:0" };
+  sandbox.C.run = (raw) => {
+    const pack = JSON.parse(raw);
+    sandbox.loader.style.display = "none";
+    sandbox.C.paths = pack.paths;
+    sandbox.C.PR.data = pack.process.data;
+    Object.assign(sandbox.C.PL, pack.personal);
+    dom.button = null;
+  };
+  sandbox.C.post = (name, args, isLocation, dontrun, cb) => {
+    assert.equal(pending, undefined, "не более одного запроса одновременно");
+    assert.equal(sandbox.TR, false, "запрос отправляется после освобождения родной блокировки");
+    assert.equal(dontrun, true);
+    held();
+    assert.equal(sandbox.C.paths[name], "token:" + requests.length, "каждый запрос использует свежую ссылку");
+    if (name === "switch_kit") {
+      assert.equal(isLocation, false);
+      assert.deepEqual(Object.keys(args), ["kit"]);
+      assert.notEqual(args.kit, view, "возврат вида только если показан другой комплект");
+    } else {
+      assert.equal(name, "inventory_used");
+      assert.equal(args.action, "dress", "снятие не используется");
+      assert.equal(args.from, "stored");
+      assert.equal(args.itarget, (args.slot === "quiver" ? quiver && "arrows" : kits[args.kit][args.slot]) || "",
+        "замена указывает актуальную вещь");
+    }
+    requests.push({ name, ...args });
+    pending = { name, args, cb };
+    sandbox.loader.style.display = "block";
+    sandbox.TR = true;
+  };
+  sandbox.TR = false;
+  vm.runInNewContext(script, sandbox);
+  const flush = () => {
+    for (const [id, timeout] of [...timeouts]) {
+      if (timeout.ms === 0) { timeouts.delete(id); timeout.fn(); }
+    }
+  };
+  const respond = ({ stale = false, refused = false, stillBusy = false } = {}) => {
+    const { name, args, cb } = pending;
+    pending = undefined;
+    if (!stale && !refused && name === "switch_kit") view = args.kit;
+    else if (!stale && !refused) {
+      view = args.kit;
+      if (args.slot === "quiver") quiver = true;
+      else {
+        const bowInOtherKit = args.iid === "bow" && kits[3 - args.kit].sword === "bow";
+        kits[args.kit][args.slot] = bowInOtherKit ? null : args.iid;
+      }
+      if (args.slot === "sword" && items[args.iid].type === 11 && kits[args.kit].shield === "shield") {
+        kits[args.kit].shield = null;
+      }
+      if (args.iid === "shield" && kits[args.kit].sword === "bow") kits[args.kit].sword = null;
+      if (![1, 2].some((kit) => kits[kit].sword === "bow")) quiver = false;
+      sandbox.C.PL.health_max = maxHP();
+      sandbox.C.PL.health = Math.min(sandbox.C.PL.health, maxHP());
+    }
+    const token = "token:" + requests.length;
+    cb(JSON.stringify({ ...(stale ? {} : { paths: { inventory_used: token, switch_kit: token } }),
+      process: { data: data() }, personal: { ...sandbox.C.PL } }));
+    sandbox.TR = stillBusy;
+    flush();
+    if (pending || stillBusy) held();
+  };
+  const complete = () => {
+    for (let i = 0; pending && i < 7; i++) respond();
+    assert.equal(pending, undefined, "цепочка завершилась за шесть запросов");
+  };
+  return { sandbox, kits, dom, requests, messages, timeouts, respond, complete, idle, held, listeners,
+    pending: () => pending, view: () => view, quiver: () => quiver };
+}
+
+for (const [ranged, initial] of [[false, 1], [false, 2], [true, 1], [true, 2]]) {
+  const swap = kitsGame({ ranged, initial });
+  assert.deepEqual(swap.listeners.map((l) => l.type), ["click", "keydown", "keyup"], "перехват ввода ставится один раз");
+  swap.idle();
+  const before = JSON.parse(JSON.stringify(swap.kits));
+  const initialHP = swap.sandbox.C.PL.health;
+  swap.dom.button.click();
+  swap.dom.button.click();
+  assert.equal(swap.requests.length, 1, "двойной клик запускает только одну цепочку");
+  assert.equal(swap.dom.button.disabled, true);
+  swap.held();
+  swap.complete();
+  assert.deepEqual(swap.kits, { 1: before[2], 2: before[1] }, "обе пары полностью меняются местами");
+  assert.equal(swap.view(), initial, "показан исходный комплект");
+  assert.equal(swap.sandbox.C.PR.data.kit, initial);
+  // Последней шла замена стрел в новом комплекте с луком: он и показан.
+  const bowView = ranged ? 2 : 1;
+  assert.equal(swap.requests.length, initial === bowView ? 5 : 6,
+    "четыре замены рук, возврат стрел и при необходимости один возврат вида");
+  assert.equal(swap.requests.filter((r) => r.name === "switch_kit").length, initial === bowView ? 0 : 1);
+  if (initial !== bowView) assert.deepEqual(swap.requests[5], { name: "switch_kit", kit: initial });
+  swap.idle();
+  assert.equal(swap.sandbox.C.PL.health, Math.min(initialHP, swap.sandbox.C.PL.health_max),
+    "нет лишней потери HP от промежуточного снятия несовместимого щита");
+  assert.ok(swap.sandbox.C.PR.data.items_list.some((item) => item.id === "armor"), "броня остаётся надета");
+  assert.equal(swap.quiver(), true, "автоматически снятые сервером стрелы возвращаются в комплект с луком");
+  // Количество стрел зависит от показанного комплекта: в ближнем бою их 0.
+  assert.equal(swap.sandbox.C.PR.data.items_list.find((item) => item.id === "arrows")?.info.total_quantity,
+    initial === bowView ? 30 : 0);
+  assert.equal(swap.dom.button.disabled, false);
+  assert.deepEqual(swap.messages, []);
+  assert.equal(swap.timeouts.size, 0, "после завершения не осталось ожиданий");
+  if (!ranged) assert.equal(swap.sandbox.C.PL.health, swap.sandbox.C.PL.health_max,
+    "переход на меньший максимум заканчивается с полным HP");
+}
+
+const sharedKits = kitsGame({ sharedLeft: true });
+sharedKits.dom.button.click();
+sharedKits.complete();
+assert.equal(sharedKits.requests.length, 3, "совпадающая левая рука не создаёт лишних запросов");
+
+// Без колчана последней меняется левая рука комплекта 2.
+for (const initial of [1, 2]) {
+  const noArrowsKits = kitsGame({ withoutArrows: true, initial });
+  noArrowsKits.dom.button.click();
+  noArrowsKits.complete();
+  assert.equal(noArrowsKits.requests.length, initial === 2 ? 4 : 5, "без колчана — четыре замены рук и возврат вида");
+  assert.equal(noArrowsKits.view(), initial);
+  noArrowsKits.idle();
+}
+
+const busyKits = kitsGame();
+busyKits.dom.button.click();
+busyKits.respond({ stillBusy: true });
+assert.equal(busyKits.requests.length, 1, "временно занятая очередь не прерывает частичный обмен");
+busyKits.held();
+assert.deepEqual(busyKits.messages, []);
+busyKits.sandbox.TR = false;
+const [retryId, retry] = [...busyKits.timeouts.entries()].find(([, t]) => t.ms === 50);
+busyKits.timeouts.delete(retryId);
+retry.fn();
+busyKits.complete();
+assert.equal(busyKits.requests.length, 5);
+assert.equal(busyKits.timeouts.size, 0);
+
+const unsupportedKits = kitsGame({ twoHanded: true });
+unsupportedKits.dom.button.click();
+assert.equal(unsupportedKits.requests.length, 0, "непроверенный двуручный комплект не меняется");
+assert.equal(unsupportedKits.messages.length, 1);
+
+const twoBowsKits = kitsGame();
+twoBowsKits.sandbox.C.PR.data.items_list.find((item) => item.id === "sword").type = 11;
+twoBowsKits.dom.button.click();
+assert.equal(twoBowsKits.requests.length, 0, "непроверенный обмен двух луков не снимает вещи");
+assert.equal(twoBowsKits.messages.length, 1);
+
+for (const failure of ["stale", "refused"]) {
+  const swap = kitsGame();
+  swap.dom.button.click();
+  swap.respond({ [failure]: true });
+  swap.dom.button.click();
+  assert.equal(swap.requests.length, 1, "после неподтверждённой замены нет продолжения или повтора");
+  assert.equal(swap.dom.button.disabled, true);
+  assert.equal(swap.messages.length, 1);
+  assert.equal(swap.timeouts.size, 0);
+  swap.idle();
+}
+
+// Сбой единственного запроса возврата вида: без повтора и без новых замен.
+for (const failure of ["stale", "refused", "silent"]) {
+  const swap = kitsGame({ initial: 2 });
+  swap.dom.button.click();
+  for (let i = 0; i < 5; i++) swap.respond();
+  assert.equal(swap.pending().name, "switch_kit");
+  const swapped = JSON.parse(JSON.stringify(swap.kits));
+  if (failure === "silent") {
+    const [id, deadline] = [...swap.timeouts.entries()].find(([, t]) => t.ms === 15000);
+    swap.timeouts.delete(id);
+    deadline.fn();
+    swap.respond();
+  } else swap.respond({ [failure]: true });
+  swap.dom.button.click();
+  assert.equal(swap.requests.length, 6, "возврат вида не повторяется");
+  assert.deepEqual(swap.kits, swapped, "вещи после сбоя возврата не меняются");
+  assert.equal(swap.dom.button.disabled, true);
+  assert.equal(swap.messages.length, 1);
+  assert.equal(swap.timeouts.size, 0);
+  swap.idle();
+}
+
+const silentKits = kitsGame();
+silentKits.dom.button.click();
+const [deadlineId, deadline] = [...silentKits.timeouts.entries()].find(([, t]) => t.ms === 15000);
+silentKits.timeouts.delete(deadlineId);
+deadline.fn();
+silentKits.respond();
+silentKits.dom.button.click();
+assert.equal(silentKits.requests.length, 1, "запоздавший ответ после таймаута не продолжает обмен");
+assert.equal(silentKits.dom.button.disabled, true);
+assert.equal(silentKits.messages.length, 1);
+assert.equal(silentKits.timeouts.size, 0);
+silentKits.idle();
+
+const movedKits = kitsGame();
+movedKits.dom.button.click();
+movedKits.sandbox.C.PR = { intf: "newBattleScene", data: {} };
+movedKits.respond();
+assert.equal(movedKits.requests.length, 1, "переход на другой экран останавливает обмен");
+assert.equal(movedKits.sandbox.C.PR.intf, "newBattleScene", "старый ответ не возвращает экипировку поверх нового экрана");
+movedKits.idle();
 
 console.log("fix-my-mist ok");
